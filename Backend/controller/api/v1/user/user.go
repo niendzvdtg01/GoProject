@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type UserHandler struct {
@@ -22,15 +23,34 @@ func (u *UserHandler) GetUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": "ID must be a number",
 		})
+		return
 	}
 	if id <= 0 {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": "Id must be a negative number!",
 		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "New user",
+	})
+}
+
+func (u *UserHandler) GetUserByUuid(ctx *gin.Context) {
+	uuidStr := ctx.Param("uuid")
+	_, err := uuid.Parse(uuidStr)
+
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "ID must be valid uuid",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "successfully",
+		"uuidStr": uuidStr,
 	})
 }
 func (u *UserHandler) PostUser(ctx *gin.Context) {

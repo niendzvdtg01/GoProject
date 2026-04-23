@@ -15,6 +15,7 @@ func SetupRouter() *gin.Engine {
 		{
 			userhandler := user.NewUserHandler()
 			userApi.GET("/test/:id", userhandler.GetUser)
+			userApi.GET("/admin/:uuid", userhandler.GetUserByUuid)
 		}
 	}
 
