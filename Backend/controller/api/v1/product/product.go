@@ -21,10 +21,9 @@ func NewproductHandler() *Producthandler {
 
 func (p *Producthandler) GetProductBySlug(ctx *gin.Context) {
 	slugStr := ctx.Param("slug")
-	if !slugRegex.MatchString(slugStr) {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "Slug  must contain only lowercase letter, numbers, hyphens, *",
-		})
+
+	if err := utils.ValidationCharacter("error:Slug  must contain only lowercase letter, numbers, hyphens, *", slugStr, slugRegex); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{
@@ -38,18 +37,16 @@ func (p *Producthandler) GetProductBySearch(ctx *gin.Context) {
 
 	if err := utils.ValidationRequire("Search", search); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	}
-	if len(search) < 3 || len(search) > 50 {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "name must be between 3 and 50 chararcters",
-		})
 		return
 	}
 
-	if !searchRegex.MatchString(search) {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "serach only numbers, chararcter and spaces",
-		})
+	if err := utils.ValidationStringLength("Search", search, 3, 50); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := utils.ValidationCharacter("search only have numbers, charater, spaces", search, searchRegex); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
