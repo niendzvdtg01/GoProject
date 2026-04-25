@@ -9,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
-var searchRegex = regexp.MustCompile(`^[a-zA-Z0-9\s]*$`)
+var (
+	slugRegex   = regexp.MustCompile(`^[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
+	searchRegex = regexp.MustCompile(`^[a-zA-Z0-9\s]*$`)
+)
 
 type Producthandler struct {
 }

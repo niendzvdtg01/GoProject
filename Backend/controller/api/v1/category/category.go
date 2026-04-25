@@ -1,6 +1,7 @@
 package category
 
 import (
+	"backend/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,12 +25,10 @@ func NewCategoryhandler() *CategoryHandler {
 
 func (c *CategoryHandler) GetCategoryHandlerv1(ctx *gin.Context) {
 	category := ctx.Param("category")
-
-	if !validCategory[category] {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "Category must be one of: php, python, golang",
+	if err := utils.ValidationInList("category", category, validCategory); err != nil {
+		ctx.JSON(http.StatusOK, gin.H{
+			"error": err.Error(),
 		})
-		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{
 		"message":  "category found",

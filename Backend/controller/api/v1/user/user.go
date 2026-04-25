@@ -1,11 +1,10 @@
 package user
 
 import (
+	"backend/utils"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type UserHandler struct {
@@ -17,40 +16,34 @@ func NewUserHandler() *UserHandler {
 
 func (u *UserHandler) GetUser(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+
+	id, err := utils.ValidationPositive("Id", idStr)
 
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "ID must be a number",
-		})
-		return
-	}
-	if id <= 0 {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "Id must be a negative number!",
+			"error": "ID must be valid id",
 		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "New user",
+		"user_id": id,
 	})
 }
 
 func (u *UserHandler) GetUserByUuid(ctx *gin.Context) {
 	uuidStr := ctx.Param("uuid")
-	_, err := uuid.Parse(uuidStr)
+
+	uid, err := utils.ValidationUuid("Uuid", uuidStr)
 
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "ID must be valid uuid",
-		})
-		return
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "successfully",
-		"uuidStr": uuidStr,
+		"uuidStr": uid,
 	})
 }
 func (u *UserHandler) PostUser(ctx *gin.Context) {
