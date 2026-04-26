@@ -1,7 +1,8 @@
 package entiy
 
 type Video struct {
-	Title       string
-	Description string
-	URL         string
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
 }

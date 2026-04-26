@@ -2,6 +2,7 @@ package routing
 
 import (
 	"backend/controller/api/v1/category"
+	"backend/controller/api/v1/news"
 	"backend/controller/api/v1/product"
 	"backend/controller/api/v1/user"
 
@@ -31,6 +32,13 @@ func SetupRouter() *gin.Engine {
 		{
 			categoryHandler := category.NewCategoryhandler()
 			categoryApi.GET("/test/:category", categoryHandler.GetCategoryHandlerv1)
+		}
+
+		newsApi := serverRouting.Group("/news")
+		{
+			newsHandler := news.NewNewsHandler()
+			newsApi.GET("/:slug", newsHandler.GetNewsByIdV1)
+			newsApi.GET("/", newsHandler.GetNewsByIdV1)
 		}
 	}
 
