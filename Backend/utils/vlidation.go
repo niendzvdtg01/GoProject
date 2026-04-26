@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -64,4 +66,20 @@ func keys(m map[string]bool) []string {
 		k = append(k, key)
 	}
 	return k
+}
+
+func HandleValidatorErrors(err error) gin.H {
+	if validationError, ok := err.(validator.ValidationErrors); ok {
+		errors := make(map[string]string)
+		for _, e := range validationError {
+			switch e.Tag() {
+			case "gt":
+				errors[e.Field()] = e.Field() + "the number must be larger than zero!"
+			case "uuid":
+				errors[e.Field()] = e.Field() + "the number must be a valid uuid!"
+			}
+		}
+		return gin.H{"error": errors}
+	}
+	return gin.H{"error": "Yeu cau khong hop le" + err.Error()}
 }
