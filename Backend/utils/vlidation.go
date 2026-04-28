@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
@@ -77,9 +79,27 @@ func HandleValidatorErrors(err error) gin.H {
 				errors[e.Field()] = e.Field() + "the number must be larger than zero!"
 			case "uuid":
 				errors[e.Field()] = e.Field() + "the number must be a valid uuid!"
+			case "slug":
+				errors[e.Field()] = e.Field() + "Only have normal letters, numbers...!"
+			case "oneof":
+				allowedValue := strings.Join(strings.Split(e.Param(), " "), ", ")
+				errors[e.Field()] = fmt.Sprintf("%s must be one of the values: %s", e.Field(), allowedValue)
 			}
+
 		}
 		return gin.H{"error": errors}
 	}
 	return gin.H{"error": "Yeu cau khong hop le" + err.Error()}
+}
+
+func RegisterValidators() error {
+	v, ok := binding.Validator.Engine().(*validator.Validate)
+	if !ok {
+		return fmt.Errorf("failed to grt engine validator")
+	}
+	var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
+	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+		return slugRegex.MatchString(fl.Field().String())
+	})
+	return nil
 }

@@ -23,16 +23,18 @@ func NewCategoryhandler() *CategoryHandler {
 	return &CategoryHandler{}
 }
 
+type GetCategoryByParam struct {
+	Category string `uri:"category" binding:"oneof=php go python"`
+}
+
 func (c *CategoryHandler) GetCategoryHandlerv1(ctx *gin.Context) {
-	category := ctx.Param("category")
-	if err := utils.ValidationInList("category", category, validCategory); err != nil {
-		ctx.JSON(http.StatusOK, gin.H{
-			"error": err.Error(),
-		})
+	var param GetCategoryByParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		ctx.JSON(http.StatusBadGateway, utils.HandleValidatorErrors(err))
+		return
 	}
-	ctx.JSON(http.StatusOK, gin.H{
-		"message":  "category found",
-		"category": category,
+	ctx.JSON(http.StatusAccepted, gin.H{
+		"message": "Get category by category (v1)",
 	})
 
 }

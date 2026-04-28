@@ -21,6 +21,10 @@ func NewproductHandler() *Producthandler {
 	return &Producthandler{}
 }
 
+type GetProductBySlugParam struct {
+	Slug string `uri:"slug" binding:"slug"`
+}
+
 func (p *Producthandler) GetProductBySlug(ctx *gin.Context) {
 	slugStr := ctx.Param("slug")
 
