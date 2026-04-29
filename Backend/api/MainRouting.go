@@ -1,10 +1,10 @@
 package routing
 
 import (
-	"backend/controller/api/v1/category"
-	"backend/controller/api/v1/news"
-	"backend/controller/api/v1/product"
-	"backend/controller/api/v1/user"
+	"backend/internal/controller/api/v1/news"
+	"backend/internal/controller/v1/category"
+	"backend/internal/controller/v1/product"
+	user "backend/internal/handler"
 
 	"github.com/gin-gonic/gin"
 )

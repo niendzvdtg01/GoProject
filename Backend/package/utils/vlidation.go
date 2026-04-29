@@ -81,9 +81,24 @@ func HandleValidatorErrors(err error) gin.H {
 				errors[e.Field()] = e.Field() + "the number must be a valid uuid!"
 			case "slug":
 				errors[e.Field()] = e.Field() + "Only have normal letters, numbers...!"
+			case "min":
+				errors[e.Field()] = fmt.Sprintf(
+					"%s must have at least %s characters",
+					e.Field(),
+					e.Param(),
+				)
+
+			case "max":
+				errors[e.Field()] = fmt.Sprintf(
+					"%s must not exceed %s characters",
+					e.Field(),
+					e.Param(),
+				)
 			case "oneof":
 				allowedValue := strings.Join(strings.Split(e.Param(), " "), ", ")
 				errors[e.Field()] = fmt.Sprintf("%s must be one of the values: %s", e.Field(), allowedValue)
+			case "search":
+				errors[e.Field()] = e.Field() + " contains invalid characters"
 			}
 
 		}
@@ -101,5 +116,12 @@ func RegisterValidators() error {
 	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		return slugRegex.MatchString(fl.Field().String())
 	})
+
+	var searchRegex = regexp.MustCompile(`^[a-zA-Z0-9\s]+$`)
+	if err := v.RegisterValidation("search", func(fl validator.FieldLevel) bool {
+		return searchRegex.MatchString(fl.Field().String())
+	}); err != nil {
+		return err
+	}
 	return nil
 }

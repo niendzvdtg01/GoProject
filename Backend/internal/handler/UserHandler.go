@@ -1,7 +1,7 @@
 package user
 
 import (
-	"backend/utils"
+	"backend/package/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
