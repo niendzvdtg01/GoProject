@@ -18,11 +18,16 @@ func NewDBConfig() *DBConfig {
 }
 
 func (c *DBConfig) GetDSN() DBConfig {
+	// port, err := strconv.Atoi(os.Getenv("DB_USERNAME"))
+
+	// if err != nil {
+	// 	fmt.Println("Incorrect port", err)
+	// }
 	return DBConfig{
-		Host:     os.Getenv("HOST"),
+		Host:     os.Getenv("DB_HOST"),
 		Port:     3311,
-		User:     os.Getenv("USERNAME"),
-		Password: os.Getenv("PASSWORD"),
+		User:     os.Getenv("DB_USERNAME"),
+		Password: os.Getenv("DB_PASSWORD"),
 		DBName:   os.Getenv("DB_NAME"),
 	}
 }
