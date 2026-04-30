@@ -9,12 +9,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthService, users *database.UserRepository) *gin.Engine {
+func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthService, userService *service.UserService, users *database.UserRepository) *gin.Engine {
 	server := gin.Default()
 
 	serverRouting := server.Group("/api")
 	{
-		userhandler := user.NewUserHandler(authService, users)
+		userhandler := user.NewUserHandler(authService, userService, users)
 
 		authApi := serverRouting.Group("/auth")
 		{

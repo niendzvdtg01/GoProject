@@ -1,21 +1,20 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 type AuthMiddleware struct {
-	jwtSecret     string
-	revokedTokens map[string]time.Time
-	mu            sync.RWMutex
+	jwtSecret string
+}
+
+func (m *AuthMiddleware) RevokeToken(d string, time time.Time) {
+	panic("unimplemented")
 }
 
 type Claims struct {
@@ -27,21 +26,18 @@ type Claims struct {
 
 func NewAuthMiddleware(secret string) *AuthMiddleware {
 	return &AuthMiddleware{
-		jwtSecret:     secret,
-		revokedTokens: make(map[string]time.Time),
+		jwtSecret: secret,
 	}
 }
 
 func (m *AuthMiddleware) GenerateToken(userID, username, role string) (string, error) {
-	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.NewString(),
-			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
@@ -51,9 +47,6 @@ func (m *AuthMiddleware) GenerateToken(userID, username, role string) (string, e
 
 func (m *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %s", token.Header["alg"])
-		}
 		return []byte(m.jwtSecret), nil
 	})
 
@@ -68,62 +61,17 @@ func (m *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
 	return nil, jwt.ErrSignatureInvalid
 }
 
-func (m *AuthMiddleware) RevokeToken(tokenID string, expiresAt time.Time) {
-	if tokenID == "" {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.revokedTokens[tokenID] = expiresAt
-	m.cleanupExpiredRevokedTokens(time.Now())
-}
-
-func (m *AuthMiddleware) IsTokenRevoked(tokenID string) bool {
-	if tokenID == "" {
-		return false
-	}
-
-	now := time.Now()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.cleanupExpiredRevokedTokens(now)
-
-	expiresAt, ok := m.revokedTokens[tokenID]
-	return ok && expiresAt.After(now)
-}
-
-func (m *AuthMiddleware) cleanupExpiredRevokedTokens(now time.Time) {
-	for tokenID, expiresAt := range m.revokedTokens {
-		if expiresAt.Before(now) {
-			delete(m.revokedTokens, tokenID)
-		}
-	}
-}
-
-func ExtractBearerToken(authHeader string) (string, bool) {
-	if authHeader == "" {
-		return "", false
-	}
-
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenString == authHeader || tokenString == "" {
-		return "", false
-	}
-	return tokenString, true
-}
-
 func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		tokenString, ok := ExtractBearerToken(authHeader)
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
 			return
 		}
 
-		if !ok {
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenString == authHeader {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
 			return
@@ -132,12 +80,6 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		claims, err := m.ValidateToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-			c.Abort()
-			return
-		}
-
-		if m.IsTokenRevoked(claims.ID) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been revoked"})
 			c.Abort()
 			return
 		}
@@ -169,4 +111,24 @@ func (m *AuthMiddleware) RoleRequired(allowedRoles ...string) gin.HandlerFunc {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
 		c.Abort()
 	}
+}
+
+func ExtractBearerToken(authHeader string) (string, bool) {
+	const bearerPrefix = "Bearer "
+
+	if authHeader == "" {
+		return "", false
+	}
+
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		return "", false
+	}
+
+	token := strings.TrimPrefix(authHeader, bearerPrefix)
+
+	if token == "" {
+		return "", false
+	}
+
+	return token, true
 }
