@@ -2,20 +2,30 @@ package routing
 
 import (
 	user "backend/internal/handler"
+	"backend/internal/middleware"
+	database "backend/internal/respository"
+	"backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthService, users *database.UserRepository) *gin.Engine {
 	server := gin.Default()
 
 	serverRouting := server.Group("/api")
 	{
-		userApi := serverRouting.Group("/user/")
+		userhandler := user.NewUserHandler(authService, users)
+
+		authApi := serverRouting.Group("/auth")
 		{
-			userhandler := user.NewUserHandler()
-			userApi.GET("/test/:id", userhandler.GetUser)
-			userApi.GET("/admin/:uuid", userhandler.GetUserByUuid)
+			authApi.POST("/register", userhandler.Register)
+			authApi.POST("/login", userhandler.Login)
+			authApi.POST("/logout", auth.AuthRequired(), userhandler.Logout)
+		}
+
+		userApi := serverRouting.Group("/users")
+		{
+			userApi.GET("", auth.AuthRequired(), auth.RoleRequired("manager"), userhandler.ListUsers)
 		}
 
 	}
