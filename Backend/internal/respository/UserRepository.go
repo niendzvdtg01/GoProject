@@ -1,4 +1,4 @@
-package database
+package respository
 
 import (
 	"backend/internal/model"

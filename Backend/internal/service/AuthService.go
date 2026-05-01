@@ -3,7 +3,7 @@ package service
 import (
 	"backend/internal/middleware"
 	"backend/internal/model"
-	database "backend/internal/respository"
+	"backend/internal/respository"
 	"backend/package/dtorequest"
 	"context"
 	"errors"
@@ -18,7 +18,7 @@ var ErrInvalidRole = errors.New("role must be manager or member")
 var ErrTokenMissingExpiry = errors.New("token missing expiry")
 
 type AuthService struct {
-	users *database.UserRepository
+	users *respository.UserRepository
 	auth  *middleware.AuthMiddleware
 }
 type AuthResult struct {
@@ -26,7 +26,7 @@ type AuthResult struct {
 	User  model.PublicUser `json:"user"`
 }
 
-func NewAuthService(users *database.UserRepository, auth *middleware.AuthMiddleware) *AuthService {
+func NewAuthService(users *respository.UserRepository, auth *middleware.AuthMiddleware) *AuthService {
 	return &AuthService{
 		users: users,
 		auth:  auth,
@@ -36,7 +36,7 @@ func NewAuthService(users *database.UserRepository, auth *middleware.AuthMiddlew
 func (s *AuthService) Login(ctx context.Context, input dtorequest.LoginRequest) (AuthResult, error) {
 	user, err := s.users.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(input.Email)))
 	if err != nil {
-		if errors.Is(err, database.ErrUserNotFound) {
+		if errors.Is(err, respository.ErrUserNotFound) {
 			return AuthResult{}, ErrInvalidCredentials
 		}
 		return AuthResult{}, err

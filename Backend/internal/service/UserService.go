@@ -3,7 +3,7 @@ package service
 import (
 	"backend/internal/middleware"
 	"backend/internal/model"
-	database "backend/internal/respository"
+	"backend/internal/respository"
 	"backend/package/dtorequest"
 	"context"
 	"fmt"
@@ -14,11 +14,11 @@ import (
 )
 
 type UserService struct {
-	users *database.UserRepository
+	users *respository.UserRepository
 	auth  *middleware.AuthMiddleware
 }
 
-func NewUserService(users *database.UserRepository, auth *middleware.AuthMiddleware) *UserService {
+func NewUserService(users *respository.UserRepository, auth *middleware.AuthMiddleware) *UserService {
 	return &UserService{
 		users: users,
 		auth:  auth,
