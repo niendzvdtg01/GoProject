@@ -17,7 +17,7 @@ type User struct {
 }
 
 type PublicUser struct {
-	UserID    string    `json:"userId"`
+	UserID    string    `json:"user_id"`
 	Username  string    `json:"username"`
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`

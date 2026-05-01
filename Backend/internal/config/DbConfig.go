@@ -2,9 +2,11 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
-// config for database connection
+const defaultDBPort = 3311
+
 type DBConfig struct {
 	Host     string
 	Port     int
@@ -18,16 +20,20 @@ func NewDBConfig() *DBConfig {
 }
 
 func (c *DBConfig) GetDSN() DBConfig {
-	// port, err := strconv.Atoi(os.Getenv("DB_USERNAME"))
-
-	// if err != nil {
-	// 	fmt.Println("Incorrect port", err)
-	// }
 	return DBConfig{
 		Host:     os.Getenv("DB_HOST"),
-		Port:     3311,
+		Port:     dbPort(),
 		User:     os.Getenv("DB_USERNAME"),
 		Password: os.Getenv("DB_PASSWORD"),
 		DBName:   os.Getenv("DB_NAME"),
 	}
+}
+
+func dbPort() int {
+	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	if err != nil || port <= 0 {
+		return defaultDBPort
+	}
+
+	return port
 }

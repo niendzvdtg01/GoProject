@@ -14,12 +14,13 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 	serverRouting := server.Group("/api")
 	{
-		userhandler := user.NewUserHandler(authService, userService, users)
+		userhandler := user.NewUserHandler(userService, users)
+		authhandler := user.NewAuthHandler(authService)
 
 		authApi := serverRouting.Group("/auth")
 		{
-			authApi.POST("/login", userhandler.Login)
-			authApi.POST("/logout", auth.AuthRequired(), userhandler.Logout)
+			authApi.POST("/login", authhandler.Login)
+			authApi.POST("/logout", auth.AuthRequired(), authhandler.Logout)
 		}
 
 		userApi := serverRouting.Group("/users")

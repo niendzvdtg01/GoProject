@@ -15,6 +15,7 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid email or password")
 var ErrInvalidRole = errors.New("role must be manager or member")
+var ErrTokenMissingExpiry = errors.New("token missing expiry")
 
 type AuthService struct {
 	users *database.UserRepository
@@ -61,6 +62,10 @@ func (s *AuthService) Logout(token string) error {
 	claims, err := s.auth.ValidateToken(token)
 	if err != nil {
 		return err
+	}
+
+	if claims.ExpiresAt == nil {
+		return ErrTokenMissingExpiry
 	}
 
 	// JWT is stateless, so logout revokes the token id until its natural expiration.

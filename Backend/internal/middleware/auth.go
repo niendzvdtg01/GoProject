@@ -1,20 +1,23 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
-type AuthMiddleware struct {
-	jwtSecret string
-}
+var ErrTokenRevoked = errors.New("token revoked")
 
-func (m *AuthMiddleware) RevokeToken(d string, time time.Time) {
-	panic("unimplemented")
+type AuthMiddleware struct {
+	jwtSecret     string
+	revokedTokens map[string]time.Time
+	mu            sync.RWMutex
 }
 
 type Claims struct {
@@ -25,19 +28,26 @@ type Claims struct {
 }
 
 func NewAuthMiddleware(secret string) *AuthMiddleware {
-	return &AuthMiddleware{
-		jwtSecret: secret,
+	m := &AuthMiddleware{
+		jwtSecret:     secret,
+		revokedTokens: make(map[string]time.Time),
 	}
+
+	go m.cleanupRevokedTokens()
+
+	return m
 }
 
 func (m *AuthMiddleware) GenerateToken(userID, username, role string) (string, error) {
+	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.NewString(),
+			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
@@ -47,6 +57,9 @@ func (m *AuthMiddleware) GenerateToken(userID, username, role string) (string, e
 
 func (m *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, jwt.ErrSignatureInvalid
+		}
 		return []byte(m.jwtSecret), nil
 	})
 
@@ -55,24 +68,55 @@ func (m *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		if m.IsTokenRevoked(claims.ID) {
+			return nil, ErrTokenRevoked
+		}
 		return claims, nil
 	}
 
 	return nil, jwt.ErrSignatureInvalid
 }
 
+func (m *AuthMiddleware) RevokeToken(tokenID string, expiresAt time.Time) {
+	if tokenID == "" {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.revokedTokens[tokenID] = expiresAt
+}
+
+func (m *AuthMiddleware) IsTokenRevoked(tokenID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	expiresAt, exists := m.revokedTokens[tokenID]
+	return exists && time.Now().Before(expiresAt)
+}
+
+func (m *AuthMiddleware) cleanupRevokedTokens() {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for tokenID, expiresAt := range m.revokedTokens {
+			if now.After(expiresAt) {
+				delete(m.revokedTokens, tokenID)
+			}
+		}
+		m.mu.Unlock()
+	}
+}
+
 func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		tokenString, ok := ExtractBearerToken(c.GetHeader("Authorization"))
+		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
-			c.Abort()
-			return
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
 			return
 		}
@@ -100,7 +144,13 @@ func (m *AuthMiddleware) RoleRequired(allowedRoles ...string) gin.HandlerFunc {
 			return
 		}
 
-		userRole := role.(string)
+		userRole, ok := role.(string)
+		if !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid role"})
+			c.Abort()
+			return
+		}
+
 		for _, r := range allowedRoles {
 			if userRole == r {
 				c.Next()
