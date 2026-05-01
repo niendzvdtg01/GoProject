@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const defaultCleanupInterval = time.Minute
+
 type RateLimiter struct {
 	requests map[string]*clientLimit
 	mu       sync.RWMutex
@@ -21,20 +23,19 @@ type clientLimit struct {
 }
 
 func NewRateLimiter(requestsPerWindow int, window time.Duration) *RateLimiter {
-	rl := &RateLimiter{
+	limiter := &RateLimiter{
 		requests: make(map[string]*clientLimit),
 		limit:    requestsPerWindow,
 		window:   window,
 	}
 
-	// Cleanup old entries every minute
-	go rl.cleanup()
+	go limiter.cleanup(defaultCleanupInterval)
 
-	return rl
+	return limiter
 }
 
-func (rl *RateLimiter) cleanup() {
-	ticker := time.NewTicker(1 * time.Minute)
+func (rl *RateLimiter) cleanup(interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -51,46 +52,41 @@ func (rl *RateLimiter) cleanup() {
 
 func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := c.ClientIP()
-		now := time.Now()
-
-		rl.mu.Lock()
-
-		cl, exists := rl.requests[key]
-		if !exists {
-			rl.requests[key] = &clientLimit{
-				count:     1,
-				resetTime: now.Add(rl.window),
-			}
-			rl.mu.Unlock()
+		retryAfter, allowed := rl.allow(c.ClientIP())
+		if allowed {
 			c.Next()
 			return
 		}
 
-		// Check if window has reset
-		if now.After(cl.resetTime) {
-			cl.count = 1
-			cl.resetTime = now.Add(rl.window)
-			rl.mu.Unlock()
-			c.Next()
-			return
-		}
-
-		// Check if limit exceeded
-		if cl.count >= rl.limit {
-			rl.mu.Unlock()
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "Too many requests",
-				"retry_after": cl.resetTime.Sub(now).Seconds(),
-			})
-			c.Abort()
-			return
-		}
-
-		cl.count++
-		rl.mu.Unlock()
-		c.Next()
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       "too many requests",
+			"retry_after": retryAfter.Seconds(),
+		})
+		c.Abort()
 	}
+}
+
+func (rl *RateLimiter) allow(key string) (time.Duration, bool) {
+	now := time.Now()
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	limit, exists := rl.requests[key]
+	if !exists || now.After(limit.resetTime) {
+		rl.requests[key] = &clientLimit{
+			count:     1,
+			resetTime: now.Add(rl.window),
+		}
+		return 0, true
+	}
+
+	if limit.count >= rl.limit {
+		return time.Until(limit.resetTime), false
+	}
+
+	limit.count++
+	return 0, true
 }
 
 // IP-based rate limiter with different limits per endpoint
@@ -113,10 +109,8 @@ func (erl *EndpointRateLimiter) AddEndpoint(path string, requests int, window ti
 
 func (erl *EndpointRateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.FullPath()
-
 		erl.mu.RLock()
-		limiter, exists := erl.limiters[path]
+		limiter, exists := erl.limiters[c.FullPath()]
 		erl.mu.RUnlock()
 
 		if !exists {
@@ -124,41 +118,16 @@ func (erl *EndpointRateLimiter) Middleware() gin.HandlerFunc {
 			return
 		}
 
-		key := c.ClientIP()
-		now := time.Now()
-
-		limiter.mu.Lock()
-
-		cl, exists := limiter.requests[key]
-		if !exists {
-			limiter.requests[key] = &clientLimit{
-				count:     1,
-				resetTime: now.Add(limiter.window),
-			}
-			limiter.mu.Unlock()
+		retryAfter, allowed := limiter.allow(c.ClientIP())
+		if allowed {
 			c.Next()
 			return
 		}
 
-		if now.After(cl.resetTime) {
-			cl.count = 1
-			cl.resetTime = now.Add(limiter.window)
-			limiter.mu.Unlock()
-			c.Next()
-			return
-		}
-
-		if cl.count >= limiter.limit {
-			limiter.mu.Unlock()
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "Too many requests for this endpoint",
-			})
-			c.Abort()
-			return
-		}
-
-		cl.count++
-		limiter.mu.Unlock()
-		c.Next()
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       "too many requests for this endpoint",
+			"retry_after": retryAfter.Seconds(),
+		})
+		c.Abort()
 	}
 }
