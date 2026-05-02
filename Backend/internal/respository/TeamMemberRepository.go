@@ -5,6 +5,12 @@ import (
 	"database/sql"
 )
 
+const (
+	roleOwner   = "owner"
+	roleManager = "manager"
+	roleMember  = "member"
+)
+
 type TeamMemberRepository struct {
 	db *sql.DB
 }
