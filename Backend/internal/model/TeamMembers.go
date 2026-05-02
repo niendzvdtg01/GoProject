@@ -1,15 +1,17 @@
 package model
 
+import "time"
+
 type TeamMember struct {
-	TeamID   Team       `json:"team_id" db:"team_id"`
-	UserID   PublicUser `json:"user_id" db:"user_id"`
-	Role     string     `json:"role" db:"role"`
-	JoinedAt string     `json:"joined_at" db:"joined_at"`
+	TeamID   string    `json:"team_id" db:"team_id"`
+	UserID   string    `json:"user_id" db:"user_id"`
+	Role     string    `json:"role" db:"role"`
+	JoinedAt time.Time `json:"joined_at" db:"joined_at"`
 }
 
 func (tm TeamMember) Public() TeamMember {
 	return TeamMember{
-		TeamID:   tm.TeamID.Public(),
+		TeamID:   tm.TeamID,
 		UserID:   tm.UserID,
 		Role:     tm.Role,
 		JoinedAt: tm.JoinedAt,

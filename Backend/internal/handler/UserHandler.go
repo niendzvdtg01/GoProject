@@ -36,8 +36,6 @@ func (u *UserHandler) Register(ctx *gin.Context) {
 		switch {
 		case errors.Is(err, database.ErrEmailAlreadyExists):
 			ctx.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
-		case errors.Is(err, service.ErrInvalidRole):
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
 		}
@@ -48,7 +46,6 @@ func (u *UserHandler) Register(ctx *gin.Context) {
 }
 
 func (u *UserHandler) ListUsers(ctx *gin.Context) {
-	// The route is manager-only; the handler only handles fetching and response shape.
 	users, err := u.users.ListUsers(ctx.Request.Context())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})

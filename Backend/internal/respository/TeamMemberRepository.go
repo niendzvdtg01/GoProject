@@ -14,7 +14,7 @@ func NewTeamMemberRepository(db *sql.DB) *TeamMemberRepository {
 }
 
 // AddTeamMember adds a user to a team with a specific role
-func (r *TeamMemberRepository) AddTeamMember(teamID int, userID int, role string) error {
+func (r *TeamMemberRepository) AddTeamMember(teamID int, userID string, role string) error {
 	const query = `
 	INSERT INTO team_members (team_id, user_id, role)
 	VALUES (?, ?, ?);`

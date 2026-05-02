@@ -23,7 +23,6 @@ type AuthMiddleware struct {
 type Claims struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
-	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -38,12 +37,11 @@ func NewAuthMiddleware(secret string) *AuthMiddleware {
 	return m
 }
 
-func (m *AuthMiddleware) GenerateToken(userID, username, role string) (string, error) {
+func (m *AuthMiddleware) GenerateToken(userID, username string) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
-		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
 			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
@@ -130,36 +128,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
-		c.Set("role", claims.Role)
 		c.Next()
-	}
-}
-
-func (m *AuthMiddleware) RoleRequired(allowedRoles ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, exists := c.Get("role")
-		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Role not found"})
-			c.Abort()
-			return
-		}
-
-		userRole, ok := role.(string)
-		if !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid role"})
-			c.Abort()
-			return
-		}
-
-		for _, r := range allowedRoles {
-			if userRole == r {
-				c.Next()
-				return
-			}
-		}
-
-		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
-		c.Abort()
 	}
 }
 

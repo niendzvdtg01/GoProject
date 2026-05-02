@@ -30,23 +30,13 @@ func ExampleUsage(server *gin.Engine) {
 		protected.GET("/users", func(c *gin.Context) {
 			c.JSON(200, gin.H{"message": "List users"})
 		})
-
-		// Admin only routes
-		admin := protected.Group("/admin")
-		admin.Use(authMiddleware.RoleRequired("admin"))
+		// Public routes (no auth required)
+		public := server.Group("/api/public")
 		{
-			admin.GET("/settings", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "Admin settings"})
+			public.GET("/health", func(c *gin.Context) {
+				c.JSON(200, gin.H{"status": "ok"})
 			})
 		}
-	}
-
-	// Public routes (no auth required)
-	public := server.Group("/api/public")
-	{
-		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
 	}
 }
 
@@ -54,7 +44,7 @@ func ExampleUsage(server *gin.Engine) {
 func ExampleGenerateToken() string {
 	authMiddleware := NewAuthMiddleware("your-secret-key")
 
-	token, err := authMiddleware.GenerateToken("user123", "john", "user")
+	token, err := authMiddleware.GenerateToken("user123", "john")
 	if err != nil {
 		return ""
 	}

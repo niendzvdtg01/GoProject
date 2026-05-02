@@ -14,7 +14,6 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid email or password")
-var ErrInvalidRole = errors.New("role must be manager or member")
 var ErrTokenMissingExpiry = errors.New("token missing expiry")
 
 type AuthService struct {
@@ -47,7 +46,7 @@ func (s *AuthService) Login(ctx context.Context, input dtorequest.LoginRequest) 
 		return AuthResult{}, ErrInvalidCredentials
 	}
 
-	token, err := s.auth.GenerateToken(user.UserID, user.Username, user.Role)
+	token, err := s.auth.GenerateToken(user.UserID, user.Username)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("generate token: %w", err)
 	}

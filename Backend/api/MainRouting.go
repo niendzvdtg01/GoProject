@@ -25,7 +25,6 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 		userApi := serverRouting.Group("/users")
 		{
-			userApi.GET("", auth.AuthRequired(), auth.RoleRequired("manager"), userhandler.ListUsers)
 			userApi.POST("/register", userhandler.Register)
 		}
 
