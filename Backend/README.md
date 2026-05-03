@@ -4,11 +4,11 @@ This backend is a REST API built with Go, Gin, MySQL, bcrypt password hashing, a
 
 The current implementation focuses on identity and user management:
 
-- User registration.
+- User registration with one of two roles: `manager` or `member`.
 - Login with email and password.
 - JWT access token generation.
 - Logout by revoking the current token in server memory.
-- Authenticated user listing.
+- Manager-only user listing.
 
 ## Project Structure
 
@@ -19,9 +19,9 @@ Backend/
   internal/config/DbConfig.go         # Database environment config
   internal/handler/AuthHandler.go     # Login/logout HTTP handlers
   internal/handler/UserHandler.go     # User registration/listing handlers
-  internal/middleware/auth.go         # JWT auth and token revocation
+  internal/middleware/auth.go         # JWT auth, role guard, token revocation
   internal/middleware/ratelimit.go    # IP-based rate limiting middleware
-  internal/model/Users.go             # User model
+  internal/model/Users.go             # User model and role constants
   internal/model/Teams.go             # Team model placeholder
   internal/model/TeamMembers.go       # Team member model placeholder
   internal/respository/Database.go    # MySQL connection setup
@@ -82,6 +82,7 @@ Field notes:
 - `username`: display name.
 - `email`: unique login identifier.
 - `password_hash`: bcrypt hash. Raw passwords are never stored.
+- `role`: must be `manager` or `member`.
 - `created_at`: creation timestamp.
 
 ## API
@@ -170,7 +171,7 @@ Successful response:
 
 ### List Users
 
-Any authenticated user can call this endpoint.
+Only users with the `manager` role can call this endpoint.
 
 ```http
 GET /api/users
@@ -196,10 +197,12 @@ Successful response:
 
 - Passwords are hashed with bcrypt.
 - JWTs are signed with `HS256`.
-- Tokens include `user_id`, `username`, `jti`, `iat`, and `exp`.
+- Tokens include `user_id`, `username`, `role`, `jti`, `iat`, and `exp`.
 - `AuthRequired()` validates `Authorization: Bearer <token>` and stores these values in the Gin context:
   - `user_id`
   - `username`
+  - `role`
+- `RoleRequired("manager")` checks the role stored in context.
 - Logout stores the token `jti` in an in-memory revocation list until the token expires.
 
 The revocation list is process-local. If the server restarts, previously revoked tokens are no longer remembered.
