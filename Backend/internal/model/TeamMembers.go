@@ -15,5 +15,5 @@ func (tm TeamMember) Public() TeamMember {
 		UserID:   tm.UserID,
 		Role:     tm.Role,
 		JoinedAt: tm.JoinedAt,
+		}
 	}
-}

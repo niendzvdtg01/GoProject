@@ -87,7 +87,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]model.PublicUser, err
 	return users, nil
 }
 
-func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (model.User, error) {
+func (r *UserRepository) GetUserByUsername(username string) (model.User, error) {
 
 	const query = `
 	SELECT user_id, username, email, password_hash, created_at
@@ -95,7 +95,7 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 	WHERE username = ?;`
 
 	var user model.User
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
+	err := r.db.QueryRow(query, username).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,

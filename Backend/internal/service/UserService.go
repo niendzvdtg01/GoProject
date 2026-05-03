@@ -26,6 +26,7 @@ func NewUserService(users *respository.UserRepository, auth *middleware.AuthMidd
 }
 
 func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterRequest) (AuthResult, error) {
+
 	// Store only the bcrypt hash; never persist the raw password.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
