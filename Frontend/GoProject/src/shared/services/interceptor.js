@@ -1,4 +1,4 @@
-import { useAuthStore } from '../../app/store/authStore.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { api } from './axios.js'
 
 let isConfigured = false

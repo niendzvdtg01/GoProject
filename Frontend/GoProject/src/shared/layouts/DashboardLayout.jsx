@@ -1,14 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuthStore } from '../../app/store/authStore.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { ROUTES } from '../constants/routes.js'
 import { RoleBadge } from '../components/RoleBadge.jsx'
 import { Button } from '../components/Button.jsx'
-import { useLogout } from '../../features/auth/hooks/useLogout.js'
+import { useLogout } from '../hooks/useLogout.js'
 
 const navItems = [
   { label: 'Dashboard', to: ROUTES.dashboard },
   { label: 'Teams', to: ROUTES.teams },
-  { label: 'Assets', to: ROUTES.assets },
   { label: 'Profile', to: ROUTES.profile },
 ]
 

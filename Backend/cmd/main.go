@@ -31,6 +31,8 @@ func main() {
 	defer database.CloseDB()
 	//
 	userRepository := database.NewUserRepository(database.DB)
+	teamRepository := database.NewTeamRespository(database.DB)
+	teamMemberRepository := database.NewTeamMemberRepository(database.DB)
 	//
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -39,12 +41,13 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
 	authService := service.NewAuthService(userRepository, authMiddleware)
 	userService := service.NewUserService(userRepository, authMiddleware)
+	teamService := service.NewTeamManagementService(teamRepository, teamMemberRepository, userRepository)
 	//
 	if err := utils.RegisterValidators(); err != nil {
 		panic(err)
 	}
 
-	server := routing.SetupRouter(authMiddleware, authService, userService, userRepository)
+	server := routing.SetupRouter(authMiddleware, authService, userService, userRepository, teamService)
 
 	server.Run(":8080")
 }

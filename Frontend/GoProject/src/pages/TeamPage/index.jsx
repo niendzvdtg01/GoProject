@@ -1,4 +1,4 @@
-import { TeamManagementPanel } from '../../features/teams/components/TeamManagementPanel.jsx'
+import { TeamManagementPanel } from './TeamManagementPanel.jsx'
 
 export function TeamPage() {
   return (

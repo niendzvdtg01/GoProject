@@ -1,13 +1,12 @@
 import { Card } from '../../shared/components/Card.jsx'
 import { EmptyState } from '../../shared/components/EmptyState.jsx'
 import { LoadingSkeleton } from '../../shared/components/LoadingSkeleton.jsx'
-import { PermissionMatrix } from '../../features/permissions/components/PermissionMatrix.jsx'
-import { UserSummaryCards } from '../../features/users/components/UserSummaryCards.jsx'
-import { UserTable } from '../../features/users/components/UserTable.jsx'
-import { useUsers } from '../../features/users/hooks/useUsers.js'
-import { useAuthStore } from '../../app/store/authStore.js'
+import { UserSummaryCards } from './UserSummaryCards.jsx'
+import { UserTable } from './UserTable.jsx'
+import { useUsers } from '../../shared/hooks/useUsers.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { isManager } from '../../shared/types/user.js'
-import { DashboardStats } from '../../widgets/DashboardStats.jsx'
+import { DashboardStats } from '../../shared/components/DashboardStats.jsx'
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
@@ -20,7 +19,7 @@ export function DashboardPage() {
         <span className="text-xs font-extrabold uppercase text-sky-700">Dashboard</span>
         <h1 className="mt-2 text-3xl font-black text-slate-950">Workspace overview</h1>
         <p className="mt-2 max-w-3xl text-slate-600">
-          Server state is loaded through TanStack Query; auth and UI state stay in Zustand.
+          Server state is loaded through TanStack Query; auth and UI state stay in Zustand. Team management and user directory are the current focus.
         </p>
       </header>
 
@@ -49,8 +48,6 @@ export function DashboardPage() {
           description="Member accounts can view assigned teams and shared assets after those backend APIs are available."
         />
       )}
-
-      <PermissionMatrix />
     </div>
   )
 }

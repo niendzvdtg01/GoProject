@@ -1,4 +1,4 @@
-import { useAuthStore } from '../../app/store/authStore.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { Card } from '../../shared/components/Card.jsx'
 import { RoleBadge } from '../../shared/components/RoleBadge.jsx'
 

@@ -69,3 +69,13 @@ func (r *TeamMemberRepository) GetTeamMembers(teamID int) ([]model.TeamMember, e
 	}
 	return members, nil
 }
+
+// RemoveTeamMember removes a user from a team
+func (r *TeamMemberRepository) RemoveTeamMember(teamID int, userID string) error {
+	const query = `
+	DELETE FROM team_members
+	WHERE team_id = ? AND user_id = ?;`
+
+	_, err := r.db.Exec(query, teamID, userID)
+	return err
+}

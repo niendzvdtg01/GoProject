@@ -6,8 +6,7 @@ export function AuthLayout({ children }) {
           <span className="mb-3 text-xs font-extrabold uppercase text-sky-700">GoProject Gateway Client</span>
           <h1 className="text-3xl font-extrabold leading-tight text-slate-950">Workspace management</h1>
           <p className="mt-3 max-w-xl text-slate-600">
-            Authentication, dashboard, teams, assets and permissions are split by feature
-            so the frontend can scale with future microservices.
+            Authentication, dashboard, and team management are organized for clarity and future growth.
           </p>
         </div>
         {children}
