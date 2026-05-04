@@ -10,5 +10,4 @@ export const registerSchema = z.object({
   username: z.string().trim().min(3, 'Tên tối thiểu 3 ký tự').max(100),
   email: z.string().trim().email('Email không hợp lệ').max(255),
   password: z.string().min(8, 'Mật khẩu tối thiểu 8 ký tự').max(72),
-  role: z.enum([USER_ROLES.manager, USER_ROLES.member]),
 })

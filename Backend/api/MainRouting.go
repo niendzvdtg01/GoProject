@@ -30,6 +30,7 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 		userApi := serverRouting.Group("/users")
 		{
 			userApi.POST("/register", userhandler.Register)
+			userApi.GET("", auth.AuthRequired(), userhandler.ListUsers)
 		}
 
 		teamApi := serverRouting.Group("/teams")
