@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { isManager } from '../types/user.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { getUsers } from '../services/usersApi.js'
 
@@ -9,6 +8,6 @@ export function useUsers() {
   return useQuery({
     queryKey: ['users'],
     queryFn: getUsers,
-    enabled: isManager(user),
+    enabled: Boolean(user),
   })
 }

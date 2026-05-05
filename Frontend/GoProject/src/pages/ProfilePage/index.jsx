@@ -1,6 +1,5 @@
 import { useAuthStore } from '../../stores/authStore.js'
 import { Card } from '../../shared/components/Card.jsx'
-import { RoleBadge } from '../../shared/components/RoleBadge.jsx'
 
 export function ProfilePage() {
   const user = useAuthStore((state) => state.user)
@@ -16,12 +15,6 @@ export function ProfilePage() {
         <dl className="grid gap-4">
           <Item label="Username" value={user?.username} />
           <Item label="Email" value={user?.email} />
-          <div className="grid gap-1">
-            <dt className="text-sm font-bold text-slate-500">Role</dt>
-            <dd>
-              <RoleBadge role={user?.role} />
-            </dd>
-          </div>
         </dl>
       </Card>
     </div>

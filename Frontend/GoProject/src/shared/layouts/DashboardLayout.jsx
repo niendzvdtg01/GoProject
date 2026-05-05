@@ -1,7 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROUTES } from '../constants/routes.js'
-import { RoleBadge } from '../components/RoleBadge.jsx'
 import { Button } from '../components/Button.jsx'
 import { useLogout } from '../hooks/useLogout.js'
 
@@ -49,7 +48,6 @@ export function DashboardLayout() {
             <strong className="block truncate">{user?.username}</strong>
             <small className="block truncate text-slate-400">{user?.email}</small>
           </div>
-          <RoleBadge role={user?.role} />
           <Button variant="secondary" type="button" onClick={logout}>
             Logout
           </Button>

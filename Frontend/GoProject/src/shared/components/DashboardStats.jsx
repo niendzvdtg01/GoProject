@@ -1,11 +1,7 @@
 import { Card } from './Card.jsx'
 
 export function DashboardStats({ users }) {
-  const items = [
-    { label: 'Total users', value: users.length },
-    { label: 'Managers', value: users.filter((user) => user.role === 'manager').length },
-    { label: 'Members', value: users.filter((user) => user.role === 'member').length },
-  ]
+  const items = [{ label: 'Total users', value: users.length }]
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

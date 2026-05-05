@@ -5,8 +5,13 @@ export async function getTeams() {
   return response.data.teams ?? response.data ?? []
 }
 
-export async function createTeam(teamName) {
-  const response = await api.post('/teams', { teamName })
+export async function createTeam(teamName, members = []) {
+  const body = {
+    teamName,
+    members: members.map((member) => ({ user_id: member.userID || member.user_id, role: member.role })),
+  }
+
+  const response = await api.post('/teams', body)
   return response.data
 }
 

@@ -1,14 +1,11 @@
 import { Card } from '../../shared/components/Card.jsx'
 
 export function UserSummaryCards({ users }) {
-  const managers = users.filter((user) => user.role === 'manager').length
-  const members = users.filter((user) => user.role === 'member').length
-
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <SummaryCard label="Total users" value={users.length} />
-      <SummaryCard label="Managers" value={managers} />
-      <SummaryCard label="Members" value={members} />
+      <SummaryCard label="Active teams" value="—" />
+      <SummaryCard label="Role assignment" value="Team-only" />
     </div>
   )
 }

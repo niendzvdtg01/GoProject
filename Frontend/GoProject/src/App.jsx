@@ -7,7 +7,6 @@ import { LoginPage } from './pages/LoginPage/index.jsx'
 import { RegisterPage } from './pages/RegisterPage/index.jsx'
 import { DashboardLayout } from './shared/layouts/DashboardLayout.jsx'
 import { AuthLayout } from './shared/layouts/AuthLayout.jsx'
-import { USER_ROLES } from './shared/constants/roles.js'
 import { ROUTES } from './shared/constants/routes.js'
 import { ProtectedRoute } from './shared/utils/ProtectedRoute.jsx'
 import { PublicRoute } from './shared/utils/PublicRoute.jsx'
@@ -27,13 +26,8 @@ function ProtectedRoutes() {
       <Route element={<DashboardLayout />}>
         <Route path={ROUTES.dashboard} element={<DashboardPage />} />
         <Route path={ROUTES.profile} element={<ProfilePage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[USER_ROLES.manager]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path={ROUTES.teams} element={<TeamPage />} />
-          <Route path={ROUTES.teamDetail} element={<TeamPage />} />
-        </Route>
+        <Route path={ROUTES.teams} element={<TeamPage />} />
+        <Route path={ROUTES.teamDetail} element={<TeamPage />} />
       </Route>
     </Route>
   )

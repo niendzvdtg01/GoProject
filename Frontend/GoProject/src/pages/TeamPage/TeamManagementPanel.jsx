@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useAuthStore } from '../../stores/authStore.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { Card } from '../../shared/components/Card.jsx'
 import { Input } from '../../shared/components/Input.jsx'
@@ -12,8 +13,12 @@ const TEAM_ROLES = [
   { value: 'manager', label: 'Manager' },
 ]
 
+const DEFAULT_CREATE_MEMBER = () => ({ memberName: '', role: 'member' })
+
 export function TeamManagementPanel() {
+  const accessToken = useAuthStore((state) => state.accessToken)
   const [createName, setCreateName] = useState('')
+  const [createMembers, setCreateMembers] = useState([DEFAULT_CREATE_MEMBER()])
   const [memberTeamName, setMemberTeamName] = useState('')
   const [memberName, setMemberName] = useState('')
   const [memberRole, setMemberRole] = useState('member')
@@ -29,11 +34,12 @@ export function TeamManagementPanel() {
   }
 
   const createTeamMutation = useMutation({
-    mutationFn: ({ teamName }) => createTeam(teamName),
+    mutationFn: ({ teamName, members }) => createTeam(teamName, members),
     onSuccess() {
       setStatusMessage('Tạo đội thành công.')
       setErrorMessage('')
       setCreateName('')
+      setCreateMembers([DEFAULT_CREATE_MEMBER()])
     },
     onError(error) {
       setErrorMessage(getApiErrorMessage(error))
@@ -107,14 +113,29 @@ export function TeamManagementPanel() {
         </Card>
       ) : null}
 
-      <Card className="p-5">
-        <h3 className="text-base font-extrabold text-slate-950">Tạo đội mới</h3>
-        <p className="mt-1 text-sm text-slate-600">Chỉ cần tên đội, backend sẽ tự động thêm bạn làm owner.</p>
+      {!accessToken ? (
+        <Card className="p-5">
+          <p className="text-sm font-semibold text-slate-700">
+            Bạn cần đăng nhập để sử dụng chức năng quản lý đội. Nếu đã đăng nhập, vui lòng đăng xuất rồi đăng nhập lại để làm mới token.
+          </p>
+        </Card>
+      ) : null}
+
+      {accessToken ? (
+        <>
+          <Card className="p-5">
+            <h3 className="text-base font-extrabold text-slate-950">Tạo đội mới</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Nhập tên đội và tùy chọn thêm thành viên ngay lúc tạo. Backend sẽ tự động gán bạn là owner.
+        </p>
         <form
           className="grid gap-4 pt-4"
           onSubmit={(event) => {
             event.preventDefault()
-            createTeamMutation.mutate({ teamName: createName })
+            const members = createMembers
+              .filter((member) => member.memberName.trim())
+              .map((member) => ({ userID: member.memberName, role: member.role }))
+            createTeamMutation.mutate({ teamName: createName, members })
           }}
         >
           <Input
@@ -122,6 +143,54 @@ export function TeamManagementPanel() {
             value={createName}
             onChange={(event) => setCreateName(event.target.value)}
           />
+          <div className="grid gap-3">
+            {createMembers.map((member, index) => (
+              <div key={index} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_auto] md:items-end">
+                <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+                  <Input
+                    label={`Tên thành viên ${index + 1}`}
+                    value={member.memberName}
+                    onChange={(event) => {
+                      const newMembers = [...createMembers]
+                      newMembers[index] = { ...member, memberName: event.target.value }
+                      setCreateMembers(newMembers)
+                    }}
+                  />
+                  <Select
+                    label="Vai trò"
+                    value={member.role}
+                    onChange={(event) => {
+                      const newMembers = [...createMembers]
+                      newMembers[index] = { ...member, role: event.target.value }
+                      setCreateMembers(newMembers)
+                    }}
+                  >
+                    {TEAM_ROLES.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setCreateMembers(createMembers.filter((_, memberIndex) => memberIndex !== index))
+                  }}
+                >
+                  Xóa
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setCreateMembers([...createMembers, DEFAULT_CREATE_MEMBER])}
+          >
+            Thêm thành viên khi tạo
+          </Button>
           <Button type="submit" isLoading={createTeamMutation.isLoading}>
             Tạo đội
           </Button>
@@ -205,6 +274,8 @@ export function TeamManagementPanel() {
           </Button>
         </form>
       </Card>
+    </>
+      ) : null}
     </div>
   )
 }

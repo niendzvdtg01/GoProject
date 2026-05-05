@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { USER_ROLES } from '../../shared/constants/roles.js'
 
 export const loginSchema = z.object({
   email: z.string().trim().email('Email không hợp lệ').max(255),
