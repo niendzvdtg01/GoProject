@@ -15,10 +15,9 @@ export async function createTeam(teamName, members = []) {
   return response.data
 }
 
-export async function addTeamMember(teamName, memberName, role) {
+export async function addTeamMember(teamName, memberName) {
   const response = await api.post(`/teams/${encodeURIComponent(teamName)}/members`, {
     memberName,
-    role,
   })
   return response.data
 }

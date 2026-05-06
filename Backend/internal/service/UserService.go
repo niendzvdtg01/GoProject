@@ -27,6 +27,11 @@ func NewUserService(users *respository.UserRepository, auth *middleware.AuthMidd
 
 func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterRequest) (AuthResult, error) {
 
+	// Validate role
+	if input.Role != "manager" && input.Role != "member" {
+		return AuthResult{}, ErrInvalidRole
+	}
+
 	// Store only the bcrypt hash; never persist the raw password.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -38,6 +43,7 @@ func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterReq
 		Username:     strings.TrimSpace(input.Username),
 		Email:        strings.ToLower(strings.TrimSpace(input.Email)),
 		PasswordHash: string(passwordHash),
+		Role:         input.Role,
 	}
 
 	if err := s.users.CreateUser(ctx, user); err != nil {
@@ -45,7 +51,7 @@ func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterReq
 	}
 
 	// Return a signed JWT immediately so the user can start an authenticated session.
-	token, err := s.auth.GenerateToken(user.UserID, user.Username)
+	token, err := s.auth.GenerateToken(user.UserID, user.Username, user.Role)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("generate token: %w", err)
 	}

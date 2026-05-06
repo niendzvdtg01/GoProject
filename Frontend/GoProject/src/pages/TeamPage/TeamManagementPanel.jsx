@@ -4,16 +4,10 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { Card } from '../../shared/components/Card.jsx'
 import { Input } from '../../shared/components/Input.jsx'
-import { Select } from '../../shared/components/Select.jsx'
 import { getApiErrorMessage } from '../../shared/services/apiError.js'
 import { createTeam, addTeamMember, removeTeamMember, deleteTeam } from '../../shared/services/teamsApi.js'
 
-const TEAM_ROLES = [
-  { value: 'member', label: 'Member' },
-  { value: 'manager', label: 'Manager' },
-]
-
-const DEFAULT_CREATE_MEMBER = () => ({ memberName: '', role: 'member' })
+const DEFAULT_CREATE_MEMBER = () => ({ memberName: '' })
 
 export function TeamManagementPanel() {
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -21,7 +15,6 @@ export function TeamManagementPanel() {
   const [createMembers, setCreateMembers] = useState([DEFAULT_CREATE_MEMBER()])
   const [memberTeamName, setMemberTeamName] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [memberRole, setMemberRole] = useState('member')
   const [removeTeamName, setRemoveTeamName] = useState('')
   const [removeMemberName, setRemoveMemberName] = useState('')
   const [deleteTeamName, setDeleteTeamName] = useState('')
@@ -47,7 +40,7 @@ export function TeamManagementPanel() {
   })
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ teamName, memberName, role }) => addTeamMember(teamName, memberName, role),
+    mutationFn: ({ teamName, memberName }) => addTeamMember(teamName, memberName),
     onSuccess() {
       setStatusMessage('Thêm thành viên vào đội thành công.')
       setErrorMessage('')
@@ -134,7 +127,7 @@ export function TeamManagementPanel() {
             event.preventDefault()
             const members = createMembers
               .filter((member) => member.memberName.trim())
-              .map((member) => ({ userID: member.memberName, role: member.role }))
+              .map((member) => ({ userID: member.memberName }))
             createTeamMutation.mutate({ teamName: createName, members })
           }}
         >
@@ -156,21 +149,6 @@ export function TeamManagementPanel() {
                       setCreateMembers(newMembers)
                     }}
                   />
-                  <Select
-                    label="Vai trò"
-                    value={member.role}
-                    onChange={(event) => {
-                      const newMembers = [...createMembers]
-                      newMembers[index] = { ...member, role: event.target.value }
-                      setCreateMembers(newMembers)
-                    }}
-                  >
-                    {TEAM_ROLES.map((option) => (
-                      <option value={option.value} key={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
                 </div>
                 <Button
                   type="button"
@@ -199,12 +177,12 @@ export function TeamManagementPanel() {
 
       <Card className="p-5">
         <h3 className="text-base font-extrabold text-slate-950">Thêm thành viên vào đội</h3>
-        <p className="mt-1 text-sm text-slate-600">Tạo thêm thành viên bằng tên đăng nhập và vai trò phù hợp.</p>
+        <p className="mt-1 text-sm text-slate-600">Thêm thành viên vào đội chỉ cần biết tên đăng nhập; quyền global được quản lý ở backend.</p>
         <form
           className="grid gap-4 pt-4"
           onSubmit={(event) => {
             event.preventDefault()
-            addMemberMutation.mutate({ teamName: memberTeamName, memberName, role: memberRole })
+            addMemberMutation.mutate({ teamName: memberTeamName, memberName })
           }}
         >
           <Input
@@ -217,13 +195,6 @@ export function TeamManagementPanel() {
             value={memberName}
             onChange={(event) => setMemberName(event.target.value)}
           />
-          <Select value={memberRole} onChange={(event) => setMemberRole(event.target.value)} label="Vai trò">
-            {TEAM_ROLES.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
           <Button type="submit" isLoading={addMemberMutation.isLoading}>
             Thêm thành viên
           </Button>

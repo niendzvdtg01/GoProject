@@ -44,7 +44,7 @@ func ExampleUsage(server *gin.Engine) {
 func ExampleGenerateToken() string {
 	authMiddleware := NewAuthMiddleware("your-secret-key")
 
-	token, err := authMiddleware.GenerateToken("user123", "john")
+	token, err := authMiddleware.GenerateToken("user123", "john", "manager")
 	if err != nil {
 		return ""
 	}

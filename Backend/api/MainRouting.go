@@ -35,10 +35,10 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 		teamApi := serverRouting.Group("/teams")
 		{
-			teamApi.POST("", auth.AuthRequired(), teamhandler.CreateTeam)
-			teamApi.POST("/:teamName/members", auth.AuthRequired(), teamhandler.AddMember)
-			teamApi.DELETE("/:teamName/members/:memberName", auth.AuthRequired(), teamhandler.RemoveMember)
-			teamApi.DELETE("/:teamName", auth.AuthRequired(), teamhandler.DeleteTeam)
+			teamApi.POST("", auth.AuthRequired(), auth.RequireManager(), teamhandler.CreateTeam)
+			teamApi.POST("/:teamName/members", auth.AuthRequired(), auth.RequireManager(), teamhandler.AddMember)
+			teamApi.DELETE("/:teamName/members/:memberName", auth.AuthRequired(), auth.RequireManager(), teamhandler.RemoveMember)
+			teamApi.DELETE("/:teamName", auth.AuthRequired(), auth.RequireManager(), teamhandler.DeleteTeam)
 		}
 
 	}

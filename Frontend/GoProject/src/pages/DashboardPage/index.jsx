@@ -1,9 +1,7 @@
 import { Card } from '../../shared/components/Card.jsx'
-import { EmptyState } from '../../shared/components/EmptyState.jsx'
 import { LoadingSkeleton } from '../../shared/components/LoadingSkeleton.jsx'
 import { UserTable } from './UserTable.jsx'
 import { useUsers } from '../../shared/hooks/useUsers.js'
-import { useAuthStore } from '../../stores/authStore.js'
 import { DashboardStats } from '../../shared/components/DashboardStats.jsx'
 
 export function DashboardPage() {

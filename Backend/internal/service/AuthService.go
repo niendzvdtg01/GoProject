@@ -47,7 +47,7 @@ func (s *AuthService) Login(ctx context.Context, input dtorequest.LoginRequest) 
 		return AuthResult{}, ErrInvalidCredentials
 	}
 
-	token, err := s.auth.GenerateToken(user.UserID, user.Username)
+	token, err := s.auth.GenerateToken(user.UserID, user.Username, user.Role)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("generate token: %w", err)
 	}

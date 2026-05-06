@@ -29,7 +29,7 @@ func (h *TeamHandler) CreateTeam(c *gin.Context) {
 	}
 
 	// Get user ID from context (assuming auth middleware sets it)
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
@@ -48,20 +48,19 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 	teamName := c.Param("teamName")
 	var req struct {
 		MemberName string `json:"memberName" binding:"required"`
-		Role       string `json:"role" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MemberName, req.Role)
+	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MemberName)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -74,7 +73,7 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 	teamName := c.Param("teamName")
 	memberName := c.Param("memberName")
 
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
@@ -92,7 +91,7 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 func (h *TeamHandler) DeleteTeam(c *gin.Context) {
 	teamName := c.Param("teamName")
 
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return

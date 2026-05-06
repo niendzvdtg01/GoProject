@@ -23,10 +23,10 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 func (r *UserRepository) CreateUser(ctx context.Context, user model.User) error {
 	const query = `
-	INSERT INTO users (user_id, username, email, password_hash)
-	VALUES (?, ?, ?, ?);`
+	INSERT INTO users (user_id, username, email, password_hash, role)
+	VALUES (?, ?, ?, ?, ?);`
 
-	_, err := r.db.ExecContext(ctx, query, user.UserID, user.Username, user.Email, user.PasswordHash)
+	_, err := r.db.ExecContext(ctx, query, user.UserID, user.Username, user.Email, user.PasswordHash, user.Role)
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
@@ -39,7 +39,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user model.User) error 
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (model.User, error) {
 	const query = `
-	SELECT user_id, username, email, password_hash, created_at
+	SELECT user_id, username, email, password_hash, role, created_at
 	FROM users
 	WHERE email = ?;`
 
@@ -49,6 +49,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (mode
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
+		&user.Role,
 		&user.CreatedAt,
 	)
 	if err != nil {
@@ -90,7 +91,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]model.PublicUser, err
 func (r *UserRepository) GetUserByUsername(username string) (model.User, error) {
 
 	const query = `
-	SELECT user_id, username, email, password_hash, created_at
+	SELECT user_id, username, email, password_hash, role, created_at
 	FROM users
 	WHERE username = ?;`
 
@@ -100,6 +101,7 @@ func (r *UserRepository) GetUserByUsername(username string) (model.User, error) 
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
+		&user.Role,
 		&user.CreatedAt,
 	)
 	if err != nil {

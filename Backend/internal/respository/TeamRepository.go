@@ -13,12 +13,12 @@ func NewTeamRespository(db *sql.DB) *TeamRepository {
 	return &TeamRepository{db: db}
 }
 
-func (tr *TeamRepository) CreateTeam(teamName string) (int, error) {
+func (tr *TeamRepository) CreateTeam(teamName, ownerID string) (int, error) {
 	const query = `
-	INSERT INTO teams (team_name)
-	VALUES (?);`
+	INSERT INTO teams (team_name, owner_id)
+	VALUES (?, ?);`
 
-	result, err := tr.db.Exec(query, teamName)
+	result, err := tr.db.Exec(query, teamName, ownerID)
 	if err != nil {
 		return 0, err
 	}
@@ -33,7 +33,7 @@ func (tr *TeamRepository) CreateTeam(teamName string) (int, error) {
 
 func (tr *TeamRepository) GetTeamByName(teamName string) (model.Team, error) {
 	const query = `
-	SELECT team_id, team_name, created_at, updated_at
+	SELECT team_id, team_name, owner_id, created_at, updated_at
 	FROM teams
 	WHERE team_name = ?;`
 
@@ -41,6 +41,7 @@ func (tr *TeamRepository) GetTeamByName(teamName string) (model.Team, error) {
 	err := tr.db.QueryRow(query, teamName).Scan(
 		&team.TeamID,
 		&team.TeamName,
+		&team.OwnerID,
 		&team.CreatedAt,
 		&team.UpDatedAt,
 	)
