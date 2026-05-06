@@ -4,10 +4,11 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { Card } from '../../shared/components/Card.jsx'
 import { Input } from '../../shared/components/Input.jsx'
+import { Select } from '../../shared/components/Select.jsx'
 import { getApiErrorMessage } from '../../shared/services/apiError.js'
 import { createTeam, addTeamMember, removeTeamMember, deleteTeam } from '../../shared/services/teamsApi.js'
 
-const DEFAULT_CREATE_MEMBER = () => ({ memberName: '' })
+const DEFAULT_CREATE_MEMBER = () => ({ memberName: '', role: 'member' })
 
 export function TeamManagementPanel() {
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -74,6 +75,7 @@ export function TeamManagementPanel() {
       setErrorMessage(getApiErrorMessage(error))
     },
   })
+  console.log(createMembers)
 
   return (
     <div className="grid gap-4">
@@ -119,7 +121,7 @@ export function TeamManagementPanel() {
           <Card className="p-5">
             <h3 className="text-base font-extrabold text-slate-950">Tạo đội mới</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Nhập tên đội và tùy chọn thêm thành viên ngay lúc tạo. Backend sẽ tự động gán bạn là owner.
+          Nhập tên đội và thêm thành viên ngay lúc tạo. Chỉ role manager được phép dùng khi tạo team, backend sẽ tự động gán bạn là owner.
         </p>
         <form
           className="grid gap-4 pt-4"
@@ -127,7 +129,7 @@ export function TeamManagementPanel() {
             event.preventDefault()
             const members = createMembers
               .filter((member) => member.memberName.trim())
-              .map((member) => ({ userID: member.memberName }))
+              .map((member) => ({ userID: member.memberName, role: member.role }))
             createTeamMutation.mutate({ teamName: createName, members })
           }}
         >
@@ -149,6 +151,18 @@ export function TeamManagementPanel() {
                       setCreateMembers(newMembers)
                     }}
                   />
+                  <Select
+                    label="Vai trò"
+                    value={member.role}
+                    onChange={(event) => {
+                      const newMembers = [...createMembers]
+                      newMembers[index] = { ...member, role: event.target.value }
+                      setCreateMembers(newMembers)
+                    }}
+                  >
+                    <option value="manager">Manager</option>
+                    <option value="member">Member</option>
+                  </Select>
                 </div>
                 <Button
                   type="button"
@@ -165,7 +179,7 @@ export function TeamManagementPanel() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setCreateMembers([...createMembers, DEFAULT_CREATE_MEMBER])}
+            onClick={() => setCreateMembers([...createMembers, DEFAULT_CREATE_MEMBER()])}
           >
             Thêm thành viên khi tạo
           </Button>

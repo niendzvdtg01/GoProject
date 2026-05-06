@@ -47,7 +47,7 @@ func (h *TeamHandler) CreateTeam(c *gin.Context) {
 func (h *TeamHandler) AddMember(c *gin.Context) {
 	teamName := c.Param("teamName")
 	var req struct {
-		MemberName string `json:"memberName" binding:"required"`
+		MembeRequest dtorequest.MemberRequest `json:"member" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -60,7 +60,7 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MemberName)
+	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MembeRequest.MemberName, req.MembeRequest.Role)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
