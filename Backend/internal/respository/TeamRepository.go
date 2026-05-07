@@ -91,3 +91,31 @@ func (tr *TeamRepository) DeleteTeamByName(teamName string) error {
 	_, err := tr.db.Exec(query, teamName)
 	return err
 }
+
+func (tr *TeamMemberRepository) FindTeamByOwnerID(ownerID string) (model.Team, error) {
+	const query = `
+	SELECT 
+		t.team_id,
+		t.team_name,
+		t.created_at
+	FROM teams t
+	JOIN team_members tm 
+		ON t.team_id = tm.team_id
+	WHERE tm.user_id = ?
+	  AND tm.role = 'OWNER'
+	LIMIT 1
+	`
+
+	var team model.Team
+	err := tr.db.QueryRow(query, ownerID).Scan(
+		&team.TeamID,
+		&team.TeamName,
+		&team.CreatedAt,
+	)
+
+	if err != nil {
+		return model.Team{}, err
+	}
+
+	return team, nil
+}
