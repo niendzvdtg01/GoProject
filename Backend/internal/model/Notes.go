@@ -2,6 +2,7 @@ package model
 
 type Notes struct {
 	ID       string `json:"id" db:"id"`
+	OwnerID  string `json:"owner_id" db:"owner_id"`
 	FolderID string `json:"folder_id" db:"folder_id"`
 	Title    string `json:"title" db:"title"`
 	Content  string `json:"content" db:"content"`
