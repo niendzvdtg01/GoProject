@@ -112,3 +112,27 @@ func (r *UserRepository) GetUserByUsername(username string) (model.User, error) 
 	}
 	return user, nil
 }
+
+func (r *UserRepository) GetUserByID(userID string) (model.User, error) {
+	const query = `
+	SELECT user_id, username, email, password_hash, role, created_at
+	FROM users
+	WHERE user_id = ?;`
+
+	var user model.User
+	err := r.db.QueryRow(query, userID).Scan(
+		&user.UserID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.Role,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.User{}, ErrUserNotFound
+		}
+		return model.User{}, fmt.Errorf("get user by id: %w", err)
+	}
+	return user, nil
+}

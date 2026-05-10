@@ -126,3 +126,29 @@ func (fr *FolderRepository) DeleteFolder(folderID int) error {
 
 	return nil
 }
+
+func (fr *FolderRepository) GetFolderByNoteID(noteID int) (model.Folder, error) {
+	const query = `
+	SELECT f.id, f.owner_id, f.name, f.created_at, f.updated_at
+	FROM folders f
+	JOIN notes n ON n.folder_id = f.id
+	WHERE n.id = ?;`
+
+	var folder model.Folder
+	var id int
+	err := fr.db.QueryRow(query, noteID).Scan(
+		&id,
+		&folder.OwnerID,
+		&folder.Name,
+		&folder.CreatedAt,
+		&folder.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Folder{}, ErrFolderNotFound
+		}
+		return model.Folder{}, fmt.Errorf("get folder by note id: %w", err)
+	}
+	folder.ID = strconv.Itoa(id)
+	return folder, nil
+}

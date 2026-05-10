@@ -19,12 +19,12 @@ func NewNoteRepository(db *sql.DB) *NoteRepository {
 }
 
 // CreateNote creates a new note in the database
-func (nr *NoteRepository) CreateNote(ownerID, folderID, title, content string) (int, error) {
+func (nr *NoteRepository) CreateNote(folderID, title, content string) (int, error) {
 	const query = `
-	INSERT INTO notes (owner_id, folder_id, title, content)
-	VALUES (?, ?, ?, ?);`
+	INSERT INTO notes (folder_id, title, content)
+	VALUES (?, ?, ?);`
 
-	result, err := nr.db.Exec(query, ownerID, folderID, title, content)
+	result, err := nr.db.Exec(query, folderID, title, content)
 	if err != nil {
 		return 0, err
 	}
@@ -39,7 +39,7 @@ func (nr *NoteRepository) CreateNote(ownerID, folderID, title, content string) (
 
 func (nr *NoteRepository) GetNoteByID(noteID int) (model.Notes, error) {
 	const query = `
-	SELECT id, owner_id, folder_id, title, content, created_at, updated_at
+	SELECT id, folder_id, title, content, created_at, updated_at
 	FROM notes
 	WHERE id = ?;`
 
@@ -48,7 +48,6 @@ func (nr *NoteRepository) GetNoteByID(noteID int) (model.Notes, error) {
 	var folder int
 	err := nr.db.QueryRow(query, noteID).Scan(
 		&id,
-		&note.OwnerID,
 		&folder,
 		&note.Title,
 		&note.Content,
@@ -68,7 +67,7 @@ func (nr *NoteRepository) GetNoteByID(noteID int) (model.Notes, error) {
 
 func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Notes, error) {
 	const query = `
-	SELECT id, owner_id, folder_id, title, content, created_at, updated_at
+	SELECT id, folder_id, title, content, created_at, updated_at
 	FROM notes
 	WHERE folder_id = ?
 	ORDER BY created_at DESC;`
@@ -84,7 +83,7 @@ func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Notes, error)
 		var note model.Notes
 		var id int
 		var folder int
-		if err := rows.Scan(&id, &note.OwnerID, &folder, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
+		if err := rows.Scan(&id, &folder, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
 		note.ID = strconv.Itoa(id)

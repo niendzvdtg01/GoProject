@@ -48,14 +48,13 @@ func (ns *NoteService) CreateNote(ownerName, folderID string, title, content str
 		return model.Notes{}, errors.New("only the folder owner can create notes in this folder")
 	}
 
-	noteID, err := ns.notes.CreateNote(owner.UserID, folderID, title, content)
+	noteID, err := ns.notes.CreateNote(folderID, title, content)
 	if err != nil {
 		return model.Notes{}, fmt.Errorf("create note: %w", err)
 	}
 
 	return model.Notes{
 		ID:       strconv.Itoa(noteID),
-		OwnerID:  owner.UserID,
 		FolderID: folderID,
 		Title:    title,
 		Content:  content,
@@ -77,19 +76,6 @@ func (ns *NoteService) UpdateNote(noteID int, ownerName, title, content string) 
 		return model.Notes{}, errors.New("note title is required")
 	}
 
-	owner, err := ns.users.GetUserByUsername(ownerName)
-	if err != nil {
-		return model.Notes{}, fmt.Errorf("get note owner: %w", err)
-	}
-
-	current, err := ns.notes.GetNoteByID(noteID)
-	if err != nil {
-		return model.Notes{}, err
-	}
-	if current.OwnerID != owner.UserID {
-		return model.Notes{}, errors.New("only the note owner can update the note")
-	}
-
 	updated, err := ns.notes.UpdateNote(noteID, title, content)
 	if err != nil {
 		return model.Notes{}, err
@@ -102,14 +88,12 @@ func (ns *NoteService) DeleteNote(noteID int, ownerName string) error {
 	if err != nil {
 		return fmt.Errorf("get note owner: %w", err)
 	}
-
-	current, err := ns.notes.GetNoteByID(noteID)
+	folder, err := ns.folder.GetFolderByNoteID(noteID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get note folder: %w", err)
 	}
-	if current.OwnerID != owner.UserID {
-		return errors.New("only the note owner can delete the note")
+	if folder.OwnerID != owner.UserID {
+		return errors.New("only the folder owner can delete notes in this folder")
 	}
-
 	return ns.notes.DeleteNote(noteID)
 }
