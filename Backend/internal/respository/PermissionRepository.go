@@ -9,6 +9,7 @@ import (
 
 var ErrPermissionAlreadyExists = errors.New("permission already exists")
 
+// Asset types
 const (
 	AssetTypeFolder = "folder"
 	AssetTypeNote   = "note"

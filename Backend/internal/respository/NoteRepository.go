@@ -37,7 +37,7 @@ func (nr *NoteRepository) CreateNote(folderID, title, content string) (int, erro
 	return int(noteID), nil
 }
 
-func (nr *NoteRepository) GetNoteByID(noteID int) (model.Notes, error) {
+func (nr *NoteRepository) GetNoteByID(noteID string) (model.Notes, error) {
 	const query = `
 	SELECT id, folder_id, title, content, created_at, updated_at
 	FROM notes
@@ -65,7 +65,7 @@ func (nr *NoteRepository) GetNoteByID(noteID int) (model.Notes, error) {
 	return note, nil
 }
 
-func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Notes, error) {
+func (nr *NoteRepository) ListNotesByFolder(folderID string) ([]model.Notes, error) {
 	const query = `
 	SELECT id, folder_id, title, content, created_at, updated_at
 	FROM notes
@@ -97,7 +97,7 @@ func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Notes, error)
 	return notes, nil
 }
 
-func (nr *NoteRepository) UpdateNote(noteID int, title, content string) (model.Notes, error) {
+func (nr *NoteRepository) UpdateNote(noteID string, title, content string) (model.Notes, error) {
 	const query = `
 	UPDATE notes
 	SET title = ?, content = ?, updated_at = NOW()
@@ -111,7 +111,7 @@ func (nr *NoteRepository) UpdateNote(noteID int, title, content string) (model.N
 	return nr.GetNoteByID(noteID)
 }
 
-func (nr *NoteRepository) DeleteNote(noteID int) error {
+func (nr *NoteRepository) DeleteNote(noteID string) error {
 	const query = `
 	DELETE FROM notes
 	WHERE id = ?;`

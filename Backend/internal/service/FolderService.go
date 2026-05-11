@@ -45,7 +45,7 @@ func (fs *FolderService) CreateFolder(ownerName, folderName string) (model.Folde
 	}, nil
 }
 
-func (fs *FolderService) GetFolderByID(folderID int) (model.Folder, error) {
+func (fs *FolderService) GetFolderByID(folderID string) (model.Folder, error) {
 	folder, err := fs.folder.GetFolderByID(folderID)
 	if err != nil {
 		return model.Folder{}, err
@@ -62,7 +62,7 @@ func (fs *FolderService) ListFoldersByOwner(ownerName string) ([]model.Folder, e
 	return fs.folder.ListFoldersByOwner(owner.UserID)
 }
 
-func (fs *FolderService) UpdateFolder(folderID int, ownerName, newName string) (model.Folder, error) {
+func (fs *FolderService) UpdateFolder(folderID string, ownerName, newName string) (model.Folder, error) {
 	newName = strings.TrimSpace(newName)
 	if newName == "" {
 		return model.Folder{}, errors.New("folder name is required")
@@ -88,7 +88,7 @@ func (fs *FolderService) UpdateFolder(folderID int, ownerName, newName string) (
 	return updated, nil
 }
 
-func (fs *FolderService) DeleteFolder(folderID int, ownerName string) error {
+func (fs *FolderService) DeleteFolder(folderID string, ownerName string) error {
 	owner, err := fs.users.GetUserByUsername(ownerName)
 	if err != nil {
 		return fmt.Errorf("get folder owner: %w", err)

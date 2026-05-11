@@ -37,7 +37,7 @@ func (fr *FolderRepository) CreateFolder(ownerID, name string) (int, error) {
 	return int(folderID), nil
 }
 
-func (fr *FolderRepository) GetFolderByID(folderID int) (model.Folder, error) {
+func (fr *FolderRepository) GetFolderByID(folderID string) (model.Folder, error) {
 	const query = `
 	SELECT id, owner_id, name, created_at, updated_at
 	FROM folders
@@ -92,7 +92,7 @@ func (fr *FolderRepository) ListFoldersByOwner(ownerID string) ([]model.Folder, 
 	return folders, nil
 }
 
-func (fr *FolderRepository) UpdateFolder(folderID int, name string) (model.Folder, error) {
+func (fr *FolderRepository) UpdateFolder(folderID string, name string) (model.Folder, error) {
 	const query = `
 	UPDATE folders
 	SET name = ?, updated_at = NOW()
@@ -106,7 +106,7 @@ func (fr *FolderRepository) UpdateFolder(folderID int, name string) (model.Folde
 	return fr.GetFolderByID(folderID)
 }
 
-func (fr *FolderRepository) DeleteFolder(folderID int) error {
+func (fr *FolderRepository) DeleteFolder(folderID string) error {
 	const query = `
 	DELETE FROM folders
 	WHERE id = ?;`
@@ -127,7 +127,7 @@ func (fr *FolderRepository) DeleteFolder(folderID int) error {
 	return nil
 }
 
-func (fr *FolderRepository) GetFolderByNoteID(noteID int) (model.Folder, error) {
+func (fr *FolderRepository) GetFolderByNoteID(noteID string) (model.Folder, error) {
 	const query = `
 	SELECT f.id, f.owner_id, f.name, f.created_at, f.updated_at
 	FROM folders f

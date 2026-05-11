@@ -35,12 +35,7 @@ func (ns *NoteService) CreateNote(ownerName, folderID string, title, content str
 		return model.Notes{}, fmt.Errorf("get note owner: %w", err)
 	}
 
-	folderInt, err := strconv.Atoi(folderID)
-	if err != nil {
-		return model.Notes{}, fmt.Errorf("invalid folder id: %w", err)
-	}
-
-	folderRecord, err := ns.folder.GetFolderByID(folderInt)
+	folderRecord, err := ns.folder.GetFolderByID(folderID)
 	if err != nil {
 		return model.Notes{}, err
 	}
@@ -61,15 +56,15 @@ func (ns *NoteService) CreateNote(ownerName, folderID string, title, content str
 	}, nil
 }
 
-func (ns *NoteService) GetNoteByID(noteID int) (model.Notes, error) {
+func (ns *NoteService) GetNoteByID(noteID string) (model.Notes, error) {
 	return ns.notes.GetNoteByID(noteID)
 }
 
-func (ns *NoteService) ListNotesByFolder(folderID int) ([]model.Notes, error) {
+func (ns *NoteService) ListNotesByFolder(folderID string) ([]model.Notes, error) {
 	return ns.notes.ListNotesByFolder(folderID)
 }
 
-func (ns *NoteService) UpdateNote(noteID int, ownerName, title, content string) (model.Notes, error) {
+func (ns *NoteService) UpdateNote(noteID string, ownerName, title, content string) (model.Notes, error) {
 	title = strings.TrimSpace(title)
 	content = strings.TrimSpace(content)
 	if title == "" {
@@ -83,7 +78,7 @@ func (ns *NoteService) UpdateNote(noteID int, ownerName, title, content string) 
 	return updated, nil
 }
 
-func (ns *NoteService) DeleteNote(noteID int, ownerName string) error {
+func (ns *NoteService) DeleteNote(noteID string, ownerName string) error {
 	owner, err := ns.users.GetUserByUsername(ownerName)
 	if err != nil {
 		return fmt.Errorf("get note owner: %w", err)

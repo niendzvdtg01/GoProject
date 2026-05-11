@@ -3,9 +3,13 @@ package service
 import (
 	"backend/internal/respository"
 	"backend/package/dtorequest"
+	"database/sql"
 	"errors"
-	"fmt"
-	"strconv"
+)
+
+const (
+	readPermission  = "read"
+	writePermission = "write"
 )
 
 type SharingService struct {
@@ -24,36 +28,121 @@ func NewSharing(notes *respository.NoteRepository, folder *respository.FolderRep
 	}
 }
 
-func (s *SharingService) ShareNote(req dtorequest.ShareNoteRequest, ownerUserID string) error {
-	noteID, err := strconv.Atoi(req.NoteID)
-	if err != nil {
-		return fmt.Errorf("invalid note id: %w", err)
-	}
+func (s *SharingService) shareAsset(
+	assetType string,
+	assetID string,
+	targetUserID string,
+	permissionType string,
+	ownerUserID string,
+) error {
 
-	note, err := s.notes.GetNoteByID(noteID)
-	if err != nil {
-		return err
-	}
+	if _, err := s.users.GetUserByID(targetUserID); err != nil {
 
-	folderID, err := strconv.Atoi(note.FolderID)
-	if err != nil {
-		return fmt.Errorf("invalid note folder id: %w", err)
-	}
-
-	folder, err := s.folder.GetFolderByID(folderID)
-	if err != nil {
-		return err
-	}
-	if folder.OwnerID != ownerUserID {
-		return errors.New("only the folder owner can share the note")
-	}
-
-	if _, err := s.users.GetUserByID(req.UserID); err != nil {
 		if errors.Is(err, respository.ErrUserNotFound) {
 			return errors.New("target user not found")
 		}
-		return fmt.Errorf("get share target: %w", err)
+
+		return err
 	}
 
-	return s.permission.CreatePermission(respository.AssetTypeNote, req.NoteID, req.UserID, req.PermissionType, ownerUserID)
+	return s.permission.CreatePermission(
+		assetType,
+		assetID,
+		targetUserID,
+		permissionType,
+		ownerUserID,
+	)
+}
+
+func (s *SharingService) ShareNote(request dtorequest.ShareAssetRequest, ownerUserID string) error {
+
+	note, err := s.notes.GetNoteByID(request.AssetID)
+	if err != nil {
+		return err
+	}
+
+	folder, err := s.folder.GetFolderByID(note.FolderID)
+	if err != nil {
+		return err
+	}
+
+	if folder.OwnerID != ownerUserID {
+		return errors.New("only the folder owner can share notes in this folder")
+	}
+	return s.shareAsset(
+		respository.AssetTypeNote,
+		request.AssetID,
+		request.UserID,
+		request.PermissionType,
+		ownerUserID,
+	)
+}
+
+func (s *SharingService) ShareFolder(request dtorequest.ShareAssetRequest, ownerUserID string) error {
+
+	folder, err := s.folder.GetFolderByID(request.AssetID)
+	if err != nil {
+		return err
+	}
+
+	if folder.OwnerID != ownerUserID {
+		return errors.New("only the folder owner can share this folder")
+	}
+	return s.shareAsset(
+		respository.AssetTypeFolder,
+		request.AssetID,
+		request.UserID,
+		request.PermissionType,
+		ownerUserID,
+	)
+}
+
+func (s *SharingService) ReadNotePermission(noteID string, userID string) (bool, error) {
+	folder, folderErr := s.folder.GetFolderByNoteID(noteID)
+	if folderErr != nil {
+		return false, folderErr
+	}
+
+	if folder.OwnerID == userID {
+		return true, nil
+	}
+
+	permission, err := s.permission.GetPermissionByAssetAndUser(
+		respository.AssetTypeNote,
+		noteID,
+		userID,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return permission.PermissionType == readPermission || permission.PermissionType == writePermission, nil
+}
+
+func (s *SharingService) WriteNotePermission(noteID string, userID string) (bool, error) {
+	folder, folderErr := s.folder.GetFolderByNoteID(noteID)
+	if folderErr != nil {
+		return false, folderErr
+	}
+
+	if folder.OwnerID == userID {
+		return true, nil
+	}
+
+	permission, err := s.permission.GetPermissionByAssetAndUser(
+		respository.AssetTypeNote,
+		noteID,
+		userID,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return permission.PermissionType == writePermission, nil
 }
