@@ -3,6 +3,7 @@ package handler
 import (
 	"backend/internal/service"
 	"backend/package/dtorequest"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -46,9 +47,7 @@ func (h *TeamHandler) CreateTeam(c *gin.Context) {
 
 func (h *TeamHandler) AddMember(c *gin.Context) {
 	teamName := c.Param("teamName")
-	var req struct {
-		MembeRequest dtorequest.MemberRequest `json:"member" binding:"required"`
-	}
+	var req dtorequest.MemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -60,9 +59,10 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MembeRequest.MemberName, req.MembeRequest.Role)
+	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MemberName, req.Role)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		fmt.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

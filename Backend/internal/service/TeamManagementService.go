@@ -14,9 +14,9 @@ var ErrInvalidTeamRole = errors.New("error: role must be member or manager")
 var ErrNotTeamOwner = errors.New("error: only the team owner can assign roles")
 
 const (
-	roleOwner   = "owner"
-	roleManager = "manager"
-	roleMember  = "member"
+	roleOwner   = "OWNER"
+	roleManager = "MANAGER"
+	roleMember  = "MEMBER"
 )
 
 type TeamManagementService struct {
@@ -39,7 +39,7 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 		return 0, errors.New("error: team already exists")
 	}
 
-	teamID, err := s.teams.CreateTeam(teamName, creatorUserID)
+	teamID, err := s.teams.CreateTeam(teamName)
 	if err != nil {
 		return 0, err
 	}
@@ -52,7 +52,7 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 
 	// Add additional members to the team
 	for _, m := range members {
-		user, err := s.users.GetUserByID(m.MemberName)
+		user, err := s.users.GetUserByUsername(m.MemberName)
 		if err != nil {
 			return 0, fmt.Errorf("error user not found: %w", err)
 		}
@@ -65,7 +65,7 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 	return teamID, nil
 }
 
-func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID string, memberID string, role string) (model.Team, error) {
+func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID string, memberName string, role string) (model.Team, error) {
 	team, err := s.teams.GetTeamByName(teamName)
 	if err != nil {
 		return model.Team{}, err
@@ -81,8 +81,9 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 		return model.Team{}, errors.New("error: only the team owner and managers can add members")
 	}
 
-	user, err := s.users.GetUserByID(memberID)
+	user, err := s.users.GetUserByUsername(memberName)
 	if err != nil {
+		fmt.Print(err)
 		return model.Team{}, err
 	}
 
@@ -94,7 +95,7 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 	return team, nil
 }
 
-func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID string, memberID string) error {
+func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID string, memberName string) error {
 	team, err := s.teams.GetTeamByName(teamName)
 	if err != nil {
 		return fmt.Errorf("error team not found: %w", err)
@@ -109,7 +110,7 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 		return errors.New("error: only the team owner and managers can remove members")
 	}
 
-	user, err := s.users.GetUserByID(memberID)
+	user, err := s.users.GetUserByUsername(memberName)
 	if err != nil {
 		return err
 	}
@@ -141,13 +142,20 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 }
 
 func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) error {
-	team, err := s.teams.GetTeamByName(teamName)
+	team, teamErr := s.teams.GetTeamByName(teamName)
+
+	if teamErr != nil {
+		return fmt.Errorf("Error: can not find the team: %w", teamErr)
+	}
+
+	teamMember, err := s.teamMembers.GetTeamMemberRole(team.TeamID, actorUserID)
 	if err != nil {
 		return fmt.Errorf("error team not found: %w", err)
 	}
 
 	// Check ownership: only the owner can delete the team
-	if team.OwnerID != actorUserID {
+	if teamMember != roleOwner {
+		fmt.Println(teamMember)
 		return errors.New("error: only the team owner can delete the team")
 	}
 

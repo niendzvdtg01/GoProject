@@ -98,7 +98,7 @@ Backend/
   internal/handler/    # HTTP handlers
   internal/middleware/ # JWT auth, role guards, request middleware
   internal/model/      # Domain models
-  internal/respository/# Database access layer
+  internal/repository/# Database access layer
   internal/service/    # Business logic
   package/             # Shared DTOs and utilities
 ```

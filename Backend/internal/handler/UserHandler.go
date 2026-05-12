@@ -6,6 +6,7 @@ import (
 	"backend/package/dtorequest"
 	"backend/package/utils"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,7 @@ func (u *UserHandler) Register(ctx *gin.Context) {
 func (u *UserHandler) ListUsers(ctx *gin.Context) {
 	users, err := u.userService.ListUsers(ctx.Request.Context())
 	if err != nil {
+		fmt.Println("Error: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return
 	}

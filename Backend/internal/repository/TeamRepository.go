@@ -16,12 +16,12 @@ func NewTeamRepository(db *sql.DB) *TeamRepository {
 	return &TeamRepository{db: db}
 }
 
-func (tr *TeamRepository) CreateTeam(teamName, ownerID string) (int, error) {
+func (tr *TeamRepository) CreateTeam(teamName string) (int, error) {
 	const query = `
-	INSERT INTO teams (team_name, owner_id)
-	VALUES (?, ?);`
+	INSERT INTO teams (team_name)
+	VALUES (?);`
 
-	result, err := tr.db.Exec(query, teamName, ownerID)
+	result, err := tr.db.Exec(query, teamName)
 	if err != nil {
 		return 0, err
 	}
@@ -36,7 +36,7 @@ func (tr *TeamRepository) CreateTeam(teamName, ownerID string) (int, error) {
 
 func (tr *TeamRepository) GetTeamByName(teamName string) (model.Team, error) {
 	const query = `
-	SELECT team_id, team_name, owner_id, created_at, updated_at
+	SELECT team_id, team_name, created_at, updated_at
 	FROM teams
 	WHERE team_name = ?;`
 
@@ -44,7 +44,6 @@ func (tr *TeamRepository) GetTeamByName(teamName string) (model.Team, error) {
 	err := tr.db.QueryRow(query, teamName).Scan(
 		&team.TeamID,
 		&team.TeamName,
-		&team.OwnerID,
 		&team.CreatedAt,
 		&team.UpdatedAt,
 	)
@@ -59,7 +58,7 @@ func (tr *TeamRepository) GetTeamByName(teamName string) (model.Team, error) {
 
 func (tr *TeamRepository) GetTeamByID(teamID int) (model.Team, error) {
 	const query = `
-	SELECT team_id, team_name, owner_id, created_at, updated_at
+	SELECT team_id, team_name, created_at, updated_at
 	FROM teams
 	WHERE team_id = ?;`
 
@@ -67,7 +66,6 @@ func (tr *TeamRepository) GetTeamByID(teamID int) (model.Team, error) {
 	err := tr.db.QueryRow(query, teamID).Scan(
 		&team.TeamID,
 		&team.TeamName,
-		&team.OwnerID,
 		&team.CreatedAt,
 		&team.UpdatedAt,
 	)
@@ -101,35 +99,4 @@ func (tr *TeamRepository) DeleteTeamByName(teamName string) error {
 
 	_, err := tr.db.Exec(query, teamName)
 	return err
-}
-
-func (tr *TeamRepository) FindTeamByOwnerID(ownerID string) (model.Team, error) {
-	const query = `
-	SELECT 
-		t.team_id,
-		t.team_name,
-		t.owner_id,
-		t.created_at,
-		t.updated_at
-	FROM teams t
-	WHERE t.owner_id = ?
-	LIMIT 1`
-
-	var team model.Team
-	err := tr.db.QueryRow(query, ownerID).Scan(
-		&team.TeamID,
-		&team.TeamName,
-		&team.OwnerID,
-		&team.CreatedAt,
-		&team.UpdatedAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return model.Team{}, ErrTeamNotFound
-		}
-		return model.Team{}, err
-	}
-
-	return team, nil
 }
