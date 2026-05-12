@@ -4,7 +4,7 @@ import (
 	routing "backend/api"
 	"backend/internal/config"
 	"backend/internal/middleware"
-	database "backend/internal/respository"
+	database "backend/internal/repository"
 	"backend/internal/service"
 	"backend/package/utils"
 	"os"
@@ -31,7 +31,7 @@ func main() {
 	defer database.CloseDB()
 	//
 	userRepository := database.NewUserRepository(database.DB)
-	teamRepository := database.NewTeamRespository(database.DB)
+	teamRepository := database.NewTeamRepository(database.DB)
 	teamMemberRepository := database.NewTeamMemberRepository(database.DB)
 	//
 	jwtSecret := os.Getenv("JWT_SECRET")

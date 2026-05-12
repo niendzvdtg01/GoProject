@@ -1,4 +1,4 @@
-package respository
+package repository
 
 import (
 	"backend/internal/model"
@@ -34,17 +34,18 @@ func (r *UserRepository) CreateUser(ctx context.Context, user model.User) error 
 		}
 		return fmt.Errorf("create user: %w", err)
 	}
+
 	return nil
 }
 
-func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (model.User, error) {
+func (r *UserRepository) GetUserByEmail(email string) (model.User, error) {
 	const query = `
 	SELECT user_id, username, email, password_hash, role, created_at
 	FROM users
 	WHERE email = ?;`
 
 	var user model.User
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
+	err := r.db.QueryRow(query, email).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
@@ -58,38 +59,11 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (mode
 		}
 		return model.User{}, fmt.Errorf("get user by email: %w", err)
 	}
+
 	return user, nil
 }
 
-func (r *UserRepository) ListUsers(ctx context.Context) ([]model.PublicUser, error) {
-	const query = `
-	SELECT user_id, username, email, created_at
-	FROM users
-	ORDER BY created_at DESC;`
-
-	rows, err := r.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("list users: %w", err)
-	}
-	defer rows.Close()
-
-	users := make([]model.PublicUser, 0)
-	for rows.Next() {
-		var user model.PublicUser
-		if err := rows.Scan(&user.UserID, &user.Username, &user.Email, &user.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan user: %w", err)
-		}
-		users = append(users, user)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate users: %w", err)
-	}
-
-	return users, nil
-}
-
 func (r *UserRepository) GetUserByUsername(username string) (model.User, error) {
-
 	const query = `
 	SELECT user_id, username, email, password_hash, role, created_at
 	FROM users
@@ -110,6 +84,7 @@ func (r *UserRepository) GetUserByUsername(username string) (model.User, error) 
 		}
 		return model.User{}, fmt.Errorf("get user by username: %w", err)
 	}
+
 	return user, nil
 }
 
@@ -134,5 +109,30 @@ func (r *UserRepository) GetUserByID(userID string) (model.User, error) {
 		}
 		return model.User{}, fmt.Errorf("get user by id: %w", err)
 	}
+
 	return user, nil
+}
+
+func (r *UserRepository) ListUsers(ctx context.Context) ([]model.PublicUser, error) {
+	const query = `
+	SELECT user_id, username, email, role, created_at
+	FROM users
+	ORDER BY created_at DESC;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []model.PublicUser
+	for rows.Next() {
+		var user model.PublicUser
+		if err := rows.Scan(&user.UserID, &user.Username, &user.Email, &user.Role, &user.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
 }

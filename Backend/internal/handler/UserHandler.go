@@ -1,7 +1,7 @@
 package handler
 
 import (
-	database "backend/internal/respository"
+	"backend/internal/repository"
 	"backend/internal/service"
 	"backend/package/dtorequest"
 	"backend/package/utils"
@@ -13,13 +13,11 @@ import (
 
 type UserHandler struct {
 	userService *service.UserService
-	users       *database.UserRepository
 }
 
-func NewUserHandler(userService *service.UserService, users *database.UserRepository) *UserHandler {
+func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
-		users:       users,
 	}
 }
 
@@ -32,9 +30,8 @@ func (u *UserHandler) Register(ctx *gin.Context) {
 
 	result, err := u.userService.Register(ctx.Request.Context(), input)
 	if err != nil {
-		// Map domain errors to stable HTTP responses for the API client.
 		switch {
-		case errors.Is(err, database.ErrEmailAlreadyExists):
+		case errors.Is(err, repository.ErrEmailAlreadyExists):
 			ctx.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
 		default:
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
@@ -46,7 +43,7 @@ func (u *UserHandler) Register(ctx *gin.Context) {
 }
 
 func (u *UserHandler) ListUsers(ctx *gin.Context) {
-	users, err := u.users.ListUsers(ctx.Request.Context())
+	users, err := u.userService.ListUsers(ctx.Request.Context())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
 		return

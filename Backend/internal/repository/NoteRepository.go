@@ -1,11 +1,10 @@
-package respository
+package repository
 
 import (
 	"backend/internal/model"
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 )
 
 var ErrNoteNotFound = errors.New("note not found")
@@ -18,13 +17,12 @@ func NewNoteRepository(db *sql.DB) *NoteRepository {
 	return &NoteRepository{db: db}
 }
 
-// CreateNote creates a new note in the database
-func (nr *NoteRepository) CreateNote(folderID, title, content string) (int, error) {
+func (nr *NoteRepository) CreateNote(folderID int, ownerID, title, content string) (int, error) {
 	const query = `
-	INSERT INTO notes (folder_id, title, content)
-	VALUES (?, ?, ?);`
+	INSERT INTO notes (folder_id, owner_id, title, content)
+	VALUES (?, ?, ?, ?);`
 
-	result, err := nr.db.Exec(query, folderID, title, content)
+	result, err := nr.db.Exec(query, folderID, ownerID, title, content)
 	if err != nil {
 		return 0, err
 	}
@@ -37,18 +35,17 @@ func (nr *NoteRepository) CreateNote(folderID, title, content string) (int, erro
 	return int(noteID), nil
 }
 
-func (nr *NoteRepository) GetNoteByID(noteID string) (model.Notes, error) {
+func (nr *NoteRepository) GetNoteByID(noteID int) (model.Note, error) {
 	const query = `
-	SELECT id, folder_id, title, content, created_at, updated_at
+	SELECT id, folder_id, owner_id, title, content, created_at, updated_at
 	FROM notes
 	WHERE id = ?;`
 
-	var note model.Notes
-	var id int
-	var folder int
+	var note model.Note
 	err := nr.db.QueryRow(query, noteID).Scan(
-		&id,
-		&folder,
+		&note.ID,
+		&note.FolderID,
+		&note.OwnerID,
 		&note.Title,
 		&note.Content,
 		&note.CreatedAt,
@@ -56,18 +53,16 @@ func (nr *NoteRepository) GetNoteByID(noteID string) (model.Notes, error) {
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Notes{}, ErrNoteNotFound
+			return model.Note{}, ErrNoteNotFound
 		}
-		return model.Notes{}, fmt.Errorf("get note by id: %w", err)
+		return model.Note{}, fmt.Errorf("get note by id: %w", err)
 	}
-	note.ID = strconv.Itoa(id)
-	note.FolderID = strconv.Itoa(folder)
 	return note, nil
 }
 
-func (nr *NoteRepository) ListNotesByFolder(folderID string) ([]model.Notes, error) {
+func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Note, error) {
 	const query = `
-	SELECT id, folder_id, title, content, created_at, updated_at
+	SELECT id, folder_id, owner_id, title, content, created_at, updated_at
 	FROM notes
 	WHERE folder_id = ?
 	ORDER BY created_at DESC;`
@@ -78,26 +73,18 @@ func (nr *NoteRepository) ListNotesByFolder(folderID string) ([]model.Notes, err
 	}
 	defer rows.Close()
 
-	notes := make([]model.Notes, 0)
+	notes := make([]model.Note, 0)
 	for rows.Next() {
-		var note model.Notes
-		var id int
-		var folder int
-		if err := rows.Scan(&id, &folder, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
+		var note model.Note
+		if err := rows.Scan(&note.ID, &note.FolderID, &note.OwnerID, &note.Title, &note.Content, &note.CreatedAt, &note.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
-		note.ID = strconv.Itoa(id)
-		note.FolderID = strconv.Itoa(folder)
 		notes = append(notes, note)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate notes: %w", err)
-	}
-
 	return notes, nil
 }
 
-func (nr *NoteRepository) UpdateNote(noteID string, title, content string) (model.Notes, error) {
+func (nr *NoteRepository) UpdateNote(noteID int, title, content string) (model.Note, error) {
 	const query = `
 	UPDATE notes
 	SET title = ?, content = ?, updated_at = NOW()
@@ -105,13 +92,13 @@ func (nr *NoteRepository) UpdateNote(noteID string, title, content string) (mode
 
 	_, err := nr.db.Exec(query, title, content, noteID)
 	if err != nil {
-		return model.Notes{}, fmt.Errorf("update note: %w", err)
+		return model.Note{}, fmt.Errorf("update note: %w", err)
 	}
 
 	return nr.GetNoteByID(noteID)
 }
 
-func (nr *NoteRepository) DeleteNote(noteID string) error {
+func (nr *NoteRepository) DeleteNote(noteID int) error {
 	const query = `
 	DELETE FROM notes
 	WHERE id = ?;`

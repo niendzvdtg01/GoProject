@@ -28,7 +28,7 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.Login(ctx.Request.Context(), input)
+	result, err := h.authService.Login(input)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})

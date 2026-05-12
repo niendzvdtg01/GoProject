@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -61,7 +63,7 @@ func (m *CORSMiddleware) CORS() gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Methods", joinStrings(m.allowedMethods))
 		c.Header("Access-Control-Allow-Headers", joinStrings(m.allowedHeaders))
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Max-Age", string(rune(m.maxAge)))
+		c.Header("Access-Control-Max-Age", strconv.Itoa(m.maxAge))
 
 		if len(m.exposeHeaders) > 0 {
 			c.Header("Access-Control-Expose-Headers", joinStrings(m.exposeHeaders))

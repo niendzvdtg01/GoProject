@@ -21,18 +21,18 @@ Backend/
   internal/handler/UserHandler.go     # User registration/listing handlers
   internal/middleware/auth.go         # JWT auth, role guard, token revocation
   internal/middleware/ratelimit.go    # IP-based rate limiting middleware
-  internal/model/Users.go             # User model and role constants
-  internal/model/Teams.go             # Team model placeholder
-  internal/model/TeamMembers.go       # Team member model placeholder
-  internal/respository/Database.go    # MySQL connection setup
-  internal/respository/UserRepository.go
+  internal/model/User.go              # User model and role constants
+  internal/model/Team.go              # Team model placeholder
+  internal/model/TeamMember.go        # Team member model placeholder
+  internal/repository/Database.go    # MySQL connection setup
+  internal/repository/UserRepository.go
   internal/service/AuthService.go     # Login/logout business logic
   internal/service/UserService.go     # Registration business logic
   package/dtorequest/                 # Request DTOs
-  package/utils/vlidation.go          # Validator helpers
+  package/utils/validation.go          # Validator helpers
 ```
 
-Note: the package folder is currently named `respository`. Keep imports consistent unless the package is renamed across the whole codebase.
+Note: the package folder is currently named `repository`. Keep imports consistent unless the package is renamed across the whole codebase.
 
 ## Startup Flow
 

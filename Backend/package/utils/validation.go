@@ -12,51 +12,50 @@ import (
 	"github.com/google/uuid"
 )
 
-func ValidationRequire(feildName, value string) error {
+func ValidationRequire(fieldName, value string) error {
 	if value == "" {
-		return fmt.Errorf("%s is require", feildName)
+		return fmt.Errorf("%s is required", fieldName)
 	}
 	return nil
 }
 
-func ValidationStringLength(feildName, value string, min, max int) error {
+func ValidationStringLength(fieldName, value string, min, max int) error {
 	l := len(value)
 	if l < min || l > max {
-		return fmt.Errorf("%s  must be between %d and %d chararcters", feildName, min, max)
+		return fmt.Errorf("%s must be between %d and %d characters", fieldName, min, max)
 	}
 	return nil
 }
 
-func ValidationCharacter(erorMessage, value string, re *regexp.Regexp) error {
+func ValidationCharacter(errorMessage, value string, re *regexp.Regexp) error {
 	if !re.MatchString(value) {
-		return fmt.Errorf("%s", erorMessage)
+		return fmt.Errorf("%s", errorMessage)
 	}
 	return nil
 }
 
-func ValidationPositive(feildName, value string) (int, error) {
-
+func ValidationPositive(fieldName, value string) (int, error) {
 	v, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, fmt.Errorf("Error: %s must be a number", feildName)
+		return 0, fmt.Errorf("error: %s must be a number", fieldName)
 	}
 	if v <= 0 {
-		return 0, fmt.Errorf("%s must be a positive number", feildName)
+		return 0, fmt.Errorf("%s must be a positive number", fieldName)
 	}
 	return v, nil
 }
 
-func ValidationUuid(feildName, value string) (*uuid.UUID, error) {
+func ValidationUuid(fieldName, value string) (*uuid.UUID, error) {
 	uid, err := uuid.Parse(value)
 	if err != nil {
-		return &uuid.Nil, fmt.Errorf("%s must be uuid", feildName)
+		return &uuid.Nil, fmt.Errorf("%s must be uuid", fieldName)
 	}
 	return &uid, nil
 }
 
-func ValidationInList(feildName, value string, allowed map[string]bool) error {
+func ValidationInList(fieldName, value string, allowed map[string]bool) error {
 	if !allowed[value] {
-		return fmt.Errorf("%s must be one of %v", feildName, keys(allowed))
+		return fmt.Errorf("%s must be one of %v", fieldName, keys(allowed))
 	}
 	return nil
 }
@@ -76,11 +75,11 @@ func HandleValidatorErrors(err error) gin.H {
 		for _, e := range validationError {
 			switch e.Tag() {
 			case "gt":
-				errors[e.Field()] = e.Field() + "the number must be larger than zero!"
+				errors[e.Field()] = e.Field() + " the number must be larger than zero!"
 			case "uuid":
-				errors[e.Field()] = e.Field() + "the number must be a valid uuid!"
+				errors[e.Field()] = e.Field() + " the number must be a valid uuid!"
 			case "slug":
-				errors[e.Field()] = e.Field() + "Only have normal letters, numbers...!"
+				errors[e.Field()] = e.Field() + " Only have normal letters, numbers...!"
 			case "min":
 				errors[e.Field()] = fmt.Sprintf(
 					"%s must have at least %s characters",
@@ -104,13 +103,13 @@ func HandleValidatorErrors(err error) gin.H {
 		}
 		return gin.H{"error": errors}
 	}
-	return gin.H{"error": "Yeu cau khong hop le" + err.Error()}
+	return gin.H{"error": "Invalid request: " + err.Error()}
 }
 
 func RegisterValidators() error {
 	v, ok := binding.Validator.Engine().(*validator.Validate)
 	if !ok {
-		return fmt.Errorf("failed to grt engine validator")
+		return fmt.Errorf("failed to get engine validator")
 	}
 	var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
 	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {

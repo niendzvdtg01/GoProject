@@ -1,4 +1,4 @@
-package respository
+package repository
 
 import (
 	"backend/internal/model"
@@ -23,15 +23,15 @@ func NewPermissionRepository(db *sql.DB) *PermissionRepository {
 	return &PermissionRepository{db: db}
 }
 
-func (pr *PermissionRepository) GetPermissionByAssetAndUser(assetType, assetID, userID string) (model.Permissions, error) {
+func (pr *PermissionRepository) GetPermissionByAssetAndUser(assetType string, assetID int, userID string) (model.Permission, error) {
 	const query = `
-	SELECT permissions_id, asset_type, asset_id, user_id, permission_type, granted_by, created_at
+	SELECT id, asset_type, asset_id, user_id, permission_type, granted_by, created_at
 	FROM permissions
 	WHERE asset_type = ? AND asset_id = ? AND user_id = ?;`
 
-	var permission model.Permissions
+	var permission model.Permission
 	err := pr.db.QueryRow(query, assetType, assetID, userID).Scan(
-		&permission.PermissionsID,
+		&permission.ID,
 		&permission.AssetType,
 		&permission.AssetID,
 		&permission.UserID,
@@ -41,17 +41,17 @@ func (pr *PermissionRepository) GetPermissionByAssetAndUser(assetType, assetID, 
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Permissions{}, sql.ErrNoRows
+			return model.Permission{}, sql.ErrNoRows
 		}
-		return model.Permissions{}, fmt.Errorf("get permission by asset and user: %w", err)
+		return model.Permission{}, fmt.Errorf("get permission by asset and user: %w", err)
 	}
 
 	return permission, nil
 }
 
-func (pr *PermissionRepository) CreatePermission(assetType, assetID, userID, permissionType, grantedBy string) error {
+func (pr *PermissionRepository) CreatePermission(assetType string, assetID int, userID, permissionType, grantedBy string) error {
 	existing, err := pr.GetPermissionByAssetAndUser(assetType, assetID, userID)
-	if err == nil && existing.PermissionsID != "" {
+	if err == nil && existing.ID != 0 {
 		return ErrPermissionAlreadyExists
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

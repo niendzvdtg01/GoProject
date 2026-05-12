@@ -3,7 +3,7 @@ package model
 import "time"
 
 type User struct {
-	UserID       string    `json:"userId" db:"user_id"`
+	UserID       string    `json:"user_id" db:"user_id"`
 	Username     string    `json:"username" db:"username"`
 	Email        string    `json:"email" db:"email"`
 	PasswordHash string    `json:"-" db:"password_hash"`
@@ -15,6 +15,7 @@ type PublicUser struct {
 	UserID    string    `json:"user_id"`
 	Username  string    `json:"username"`
 	Email     string    `json:"email"`
+	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -23,6 +24,7 @@ func (u User) Public() PublicUser {
 		UserID:    u.UserID,
 		Username:  u.Username,
 		Email:     u.Email,
+		Role:      u.Role,
 		CreatedAt: u.CreatedAt,
 	}
 }

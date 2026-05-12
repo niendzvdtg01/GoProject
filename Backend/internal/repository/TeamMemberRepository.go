@@ -1,4 +1,4 @@
-package respository
+package repository
 
 import (
 	"backend/internal/model"
@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	roleOwner   = "owner"
-	roleManager = "manager"
-	roleMember  = "member"
+	RoleOwner   = "owner"
+	RoleManager = "manager"
+	RoleMember  = "member"
 )
 
 type TeamMemberRepository struct {

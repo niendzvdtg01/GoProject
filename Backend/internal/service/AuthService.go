@@ -3,9 +3,8 @@ package service
 import (
 	"backend/internal/middleware"
 	"backend/internal/model"
-	"backend/internal/respository"
+	"backend/internal/repository"
 	"backend/package/dtorequest"
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,31 +17,31 @@ var ErrInvalidRole = errors.New("role must be manager or member")
 var ErrTokenMissingExpiry = errors.New("token missing expiry")
 
 type AuthService struct {
-	users *respository.UserRepository
+	users *repository.UserRepository
 	auth  *middleware.AuthMiddleware
 }
+
 type AuthResult struct {
 	Token string           `json:"token"`
 	User  model.PublicUser `json:"user"`
 }
 
-func NewAuthService(users *respository.UserRepository, auth *middleware.AuthMiddleware) *AuthService {
+func NewAuthService(users *repository.UserRepository, auth *middleware.AuthMiddleware) *AuthService {
 	return &AuthService{
 		users: users,
 		auth:  auth,
 	}
 }
 
-func (s *AuthService) Login(ctx context.Context, input dtorequest.LoginRequest) (AuthResult, error) {
-	user, err := s.users.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(input.Email)))
+func (s *AuthService) Login(input dtorequest.LoginRequest) (AuthResult, error) {
+	user, err := s.users.GetUserByEmail(strings.ToLower(strings.TrimSpace(input.Email)))
 	if err != nil {
-		if errors.Is(err, respository.ErrUserNotFound) {
+		if errors.Is(err, repository.ErrUserNotFound) {
 			return AuthResult{}, ErrInvalidCredentials
 		}
 		return AuthResult{}, err
 	}
 
-	// bcrypt comparison is intentionally used instead of comparing password strings.
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return AuthResult{}, ErrInvalidCredentials
 	}
@@ -68,7 +67,6 @@ func (s *AuthService) Logout(token string) error {
 		return ErrTokenMissingExpiry
 	}
 
-	// JWT is stateless, so logout revokes the token id until its natural expiration.
 	s.auth.RevokeToken(claims.ID, claims.ExpiresAt.Time)
 	return nil
 }

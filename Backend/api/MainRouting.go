@@ -4,7 +4,7 @@ import (
 	"backend/internal/config"
 	user "backend/internal/handler"
 	"backend/internal/middleware"
-	database "backend/internal/respository"
+	database "backend/internal/repository"
 	"backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +17,7 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 	serverRouting := server.Group("/api")
 	{
-		userhandler := user.NewUserHandler(userService, users)
+		userhandler := user.NewUserHandler(userService)
 		authhandler := user.NewAuthHandler(authService)
 		teamhandler := user.NewTeamHandler(teamService)
 

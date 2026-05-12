@@ -3,7 +3,7 @@ package service
 import (
 	"backend/internal/middleware"
 	"backend/internal/model"
-	"backend/internal/respository"
+	"backend/internal/repository"
 	"backend/package/dtorequest"
 	"context"
 	"fmt"
@@ -14,11 +14,11 @@ import (
 )
 
 type UserService struct {
-	users *respository.UserRepository
+	users *repository.UserRepository
 	auth  *middleware.AuthMiddleware
 }
 
-func NewUserService(users *respository.UserRepository, auth *middleware.AuthMiddleware) *UserService {
+func NewUserService(users *repository.UserRepository, auth *middleware.AuthMiddleware) *UserService {
 	return &UserService{
 		users: users,
 		auth:  auth,
@@ -26,13 +26,10 @@ func NewUserService(users *respository.UserRepository, auth *middleware.AuthMidd
 }
 
 func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterRequest) (AuthResult, error) {
-
-	// Validate role
 	if input.Role != "manager" && input.Role != "member" {
 		return AuthResult{}, ErrInvalidRole
 	}
 
-	// Store only the bcrypt hash; never persist the raw password.
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("hash password: %w", err)
@@ -50,7 +47,6 @@ func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterReq
 		return AuthResult{}, err
 	}
 
-	// Return a signed JWT immediately so the user can start an authenticated session.
 	token, err := s.auth.GenerateToken(user.UserID, user.Username, user.Role)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("generate token: %w", err)
@@ -60,4 +56,8 @@ func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterReq
 		Token: token,
 		User:  user.Public(),
 	}, nil
+}
+
+func (s *UserService) ListUsers(ctx context.Context) ([]model.PublicUser, error) {
+	return s.users.ListUsers(ctx)
 }
