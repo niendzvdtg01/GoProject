@@ -37,9 +37,9 @@ func (nr *NoteRepository) CreateNote(folderID int, ownerID, title, content strin
 
 func (nr *NoteRepository) GetNoteByID(noteID int) (model.Note, error) {
 	const query = `
-	SELECT id, folder_id, owner_id, title, content, created_at, updated_at
+	SELECT note_id, folder_id, owner_id, title, content, created_at, updated_at
 	FROM notes
-	WHERE id = ?;`
+	WHERE note_id = ?;`
 
 	var note model.Note
 	err := nr.db.QueryRow(query, noteID).Scan(
@@ -62,7 +62,7 @@ func (nr *NoteRepository) GetNoteByID(noteID int) (model.Note, error) {
 
 func (nr *NoteRepository) ListNotesByFolder(folderID int) ([]model.Note, error) {
 	const query = `
-	SELECT id, folder_id, owner_id, title, content, created_at, updated_at
+	SELECT note_id, folder_id, owner_id, title, content, created_at, updated_at
 	FROM notes
 	WHERE folder_id = ?
 	ORDER BY created_at DESC;`
@@ -88,7 +88,7 @@ func (nr *NoteRepository) UpdateNote(noteID int, title, content string) (model.N
 	const query = `
 	UPDATE notes
 	SET title = ?, content = ?, updated_at = NOW()
-	WHERE id = ?;`
+	WHERE note_id = ?;`
 
 	_, err := nr.db.Exec(query, title, content, noteID)
 	if err != nil {
@@ -101,7 +101,7 @@ func (nr *NoteRepository) UpdateNote(noteID int, title, content string) (model.N
 func (nr *NoteRepository) DeleteNote(noteID int) error {
 	const query = `
 	DELETE FROM notes
-	WHERE id = ?;`
+	WHERE note_id = ?;`
 
 	result, err := nr.db.Exec(query, noteID)
 	if err != nil {

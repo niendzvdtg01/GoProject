@@ -53,5 +53,66 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 		return errors.New("error: note_id or folder_id is required")
 	}
 
-	return s.permission.CreatePermission(assetType, assetID, user.UserID, req.PermissionType, grantedBy)
+	if err := s.permission.CreatePermission(assetType, assetID, user.UserID, req.PermissionType, grantedBy); err != nil {
+		return err
+	}
+
+	if assetType == repository.AssetTypeFolder {
+		notes, err := s.notes.ListNotesByFolder(assetID)
+		if err != nil {
+			return fmt.Errorf("list notes for folder inheritance: %w", err)
+		}
+		for _, note := range notes {
+			err := s.permission.CreatePermission(repository.AssetTypeNote, note.ID, user.UserID, req.PermissionType, grantedBy)
+			if err != nil && !errors.Is(err, repository.ErrPermissionAlreadyExists) {
+				return fmt.Errorf("share note %d: %w", note.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *SharingService) RevokeAccess(req dtorequest.RevokeAccessRequest, revokedBy string) error {
+	user, err := s.users.GetUserByEmail(req.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return errors.New("error: user not found")
+		}
+		return err
+	}
+
+	var assetType string
+	var assetID int
+
+	if req.NoteID != 0 {
+		assetType = repository.AssetTypeNote
+		assetID = req.NoteID
+	} else if req.FolderID != 0 {
+		assetType = repository.AssetTypeFolder
+		assetID = req.FolderID
+	} else {
+		return errors.New("error: note_id or folder_id is required")
+	}
+
+	_ = revokedBy
+
+	if err := s.permission.RevokePermission(assetType, assetID, user.UserID); err != nil {
+		return err
+	}
+
+	if assetType == repository.AssetTypeFolder {
+		notes, err := s.notes.ListNotesByFolder(assetID)
+		if err != nil {
+			return fmt.Errorf("list notes for folder revocation: %w", err)
+		}
+		for _, note := range notes {
+			err := s.permission.RevokePermission(repository.AssetTypeNote, note.ID, user.UserID)
+			if err != nil && !errors.Is(err, repository.ErrPermissionNotFound) {
+				return fmt.Errorf("revoke note %d: %w", note.ID, err)
+			}
+		}
+	}
+
+	return nil
 }

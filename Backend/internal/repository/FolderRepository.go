@@ -37,9 +37,9 @@ func (fr *FolderRepository) CreateFolder(ownerID, name string) (int, error) {
 
 func (fr *FolderRepository) GetFolderByID(folderID int) (model.Folder, error) {
 	const query = `
-	SELECT id, owner_id, name, created_at, updated_at
+	SELECT folder_id, owner_id, name, created_at, updated_at
 	FROM folders
-	WHERE id = ?;`
+	WHERE folder_id = ?;`
 
 	var folder model.Folder
 	err := fr.db.QueryRow(query, folderID).Scan(
@@ -60,7 +60,7 @@ func (fr *FolderRepository) GetFolderByID(folderID int) (model.Folder, error) {
 
 func (fr *FolderRepository) ListFoldersByOwner(ownerID string) ([]model.Folder, error) {
 	const query = `
-	SELECT id, owner_id, name, created_at, updated_at
+	SELECT folder_id, owner_id, name, created_at, updated_at
 	FROM folders
 	WHERE owner_id = ?
 	ORDER BY created_at DESC;`
@@ -80,4 +80,36 @@ func (fr *FolderRepository) ListFoldersByOwner(ownerID string) ([]model.Folder, 
 		folders = append(folders, folder)
 	}
 	return folders, nil
+}
+
+func (fr *FolderRepository) UpdateFolder(folderID int, name string) (model.Folder, error) {
+	const query = `
+	UPDATE folders SET name = ?, updated_at = NOW()
+	WHERE folder_id = ?;`
+
+	_, err := fr.db.Exec(query, name, folderID)
+	if err != nil {
+		return model.Folder{}, fmt.Errorf("update folder: %w", err)
+	}
+
+	return fr.GetFolderByID(folderID)
+}
+
+func (fr *FolderRepository) DeleteFolder(folderID int) error {
+	const query = `DELETE FROM folders WHERE folder_id = ?;`
+
+	result, err := fr.db.Exec(query, folderID)
+	if err != nil {
+		return fmt.Errorf("delete folder: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete folder rows affected: %w", err)
+	}
+	if affected == 0 {
+		return ErrFolderNotFound
+	}
+
+	return nil
 }

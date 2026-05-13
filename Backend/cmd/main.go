@@ -33,6 +33,9 @@ func main() {
 	userRepository := database.NewUserRepository(database.DB)
 	teamRepository := database.NewTeamRepository(database.DB)
 	teamMemberRepository := database.NewTeamMemberRepository(database.DB)
+	folderRepository := database.NewFolderRepository(database.DB)
+	noteRepository := database.NewNoteRepository(database.DB)
+	permissionRepository := database.NewPermissionRepository(database.DB)
 	//
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -42,12 +45,15 @@ func main() {
 	authService := service.NewAuthService(userRepository, authMiddleware)
 	userService := service.NewUserService(userRepository, authMiddleware)
 	teamService := service.NewTeamManagementService(teamRepository, teamMemberRepository, userRepository)
+	folderService := service.NewFolderService(folderRepository, userRepository, permissionRepository, teamMemberRepository)
+	noteService := service.NewNoteService(noteRepository, folderRepository, userRepository, permissionRepository, teamMemberRepository)
+	sharingService := service.NewSharing(noteRepository, folderRepository, userRepository, permissionRepository)
 	//
 	if err := utils.RegisterValidators(); err != nil {
 		panic(err)
 	}
 
-	server := routing.SetupRouter(authMiddleware, authService, userService, userRepository, teamService)
+	server := routing.SetupRouter(authMiddleware, authService, userService, userRepository, teamService, folderService, noteService, sharingService)
 
 	server.Run(":8080")
 }

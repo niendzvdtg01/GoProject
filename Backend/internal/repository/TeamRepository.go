@@ -100,3 +100,28 @@ func (tr *TeamRepository) DeleteTeamByName(teamName string) error {
 	_, err := tr.db.Exec(query, teamName)
 	return err
 }
+
+func (tr *TeamRepository) GetTeamsByUserID(userID string) ([]model.Team, error) {
+	const query = `
+	SELECT t.team_id, t.team_name, t.created_at, t.updated_at
+	FROM teams t
+	JOIN team_members tm ON t.team_id = tm.team_id
+	WHERE tm.user_id = ?
+	ORDER BY t.created_at DESC;`
+
+	rows, err := tr.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	teams := make([]model.Team, 0)
+	for rows.Next() {
+		var team model.Team
+		if err := rows.Scan(&team.TeamID, &team.TeamName, &team.CreatedAt, &team.UpdatedAt); err != nil {
+			return nil, err
+		}
+		teams = append(teams, team)
+	}
+	return teams, nil
+}

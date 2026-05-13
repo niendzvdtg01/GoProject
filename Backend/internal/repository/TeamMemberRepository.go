@@ -79,3 +79,18 @@ func (r *TeamMemberRepository) RemoveTeamMember(teamID int, userID string) error
 	_, err := r.db.Exec(query, teamID, userID)
 	return err
 }
+
+// IsManagerOf returns true if managerID is an OWNER or MANAGER in any team that also contains memberID
+func (r *TeamMemberRepository) IsManagerOf(managerID, memberID string) (bool, error) {
+	const query = `
+	SELECT COUNT(*)
+	FROM team_members tm1
+	JOIN team_members tm2 ON tm1.team_id = tm2.team_id
+	WHERE tm1.user_id = ? AND UPPER(tm1.role) IN ('OWNER','MANAGER') AND tm2.user_id = ?;`
+
+	var count int
+	if err := r.db.QueryRow(query, managerID, memberID).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

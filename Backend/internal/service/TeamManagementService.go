@@ -166,3 +166,7 @@ func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) 
 
 	return nil
 }
+
+func (s *TeamManagementService) ListTeamsForUser(userID string) ([]model.Team, error) {
+	return s.teams.GetTeamsByUserID(userID)
+}

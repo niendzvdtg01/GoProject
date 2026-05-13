@@ -105,3 +105,19 @@ func (h *TeamHandler) DeleteTeam(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Team deleted"})
 }
+
+func (h *TeamHandler) ListTeams(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	teams, err := h.teamService.ListTeamsForUser(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch teams"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"teams": teams})
+}

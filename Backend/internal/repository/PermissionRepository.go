@@ -8,6 +8,7 @@ import (
 )
 
 var ErrPermissionAlreadyExists = errors.New("permission already exists")
+var ErrPermissionNotFound = errors.New("permission not found")
 
 // Asset types
 const (
@@ -47,6 +48,27 @@ func (pr *PermissionRepository) GetPermissionByAssetAndUser(assetType string, as
 	}
 
 	return permission, nil
+}
+
+func (pr *PermissionRepository) RevokePermission(assetType string, assetID int, userID string) error {
+	const query = `
+	DELETE FROM permissions
+	WHERE asset_type = ? AND asset_id = ? AND user_id = ?;`
+
+	result, err := pr.db.Exec(query, assetType, assetID, userID)
+	if err != nil {
+		return fmt.Errorf("revoke permission: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("revoke permission rows affected: %w", err)
+	}
+	if affected == 0 {
+		return ErrPermissionNotFound
+	}
+
+	return nil
 }
 
 func (pr *PermissionRepository) CreatePermission(assetType string, assetID int, userID, permissionType, grantedBy string) error {
