@@ -1,38 +1,56 @@
+import { useNavigate } from 'react-router-dom'
+import { useTeams } from '../../shared/hooks/useTeams.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { Card } from '../../shared/components/Card.jsx'
 import { LoadingSkeleton } from '../../shared/components/LoadingSkeleton.jsx'
-import { UserTable } from './UserTable.jsx'
-import { useUsers } from '../../shared/hooks/useUsers.js'
-import { DashboardStats } from '../../shared/components/DashboardStats.jsx'
+import { EmptyState } from '../../shared/components/EmptyState.jsx'
 
 export function DashboardPage() {
-  const usersQuery = useUsers()
-  const users = usersQuery.data ?? []
+  const { data: teams = [], isLoading, error } = useTeams()
+  const user = useAuthStore(s => s.user)
+  const navigate = useNavigate()
 
   return (
-    <div className="grid gap-6">
-      <header>
-        <span className="text-xs font-extrabold uppercase text-sky-700">Dashboard</span>
-        <h1 className="mt-2 text-3xl font-black text-slate-950">Workspace overview</h1>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          Server state is loaded through TanStack Query; auth and UI state stay in Zustand. Team management and user directory are the current focus.
-        </p>
-      </header>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">Xin chào, {user?.username} 👋</h1>
+        <p className="text-slate-500 text-sm mt-1">Chọn một team để bắt đầu làm việc</p>
+      </div>
 
-      <DashboardStats users={users} />
+      {isLoading && <LoadingSkeleton rows={3} />}
+      {error && <p className="text-red-500 text-sm">Không thể tải danh sách team.</p>}
 
-      <Card className="overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="text-lg font-extrabold text-slate-950">User directory</h2>
+      {!isLoading && teams.length === 0 && (
+        <EmptyState
+          title="Bạn chưa thuộc team nào"
+          description="Liên hệ manager để được thêm vào team, hoặc tạo team mới."
+        />
+      )}
+
+      {!isLoading && teams.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {teams.map(team => (
+            <button
+              key={team.team_id}
+              onClick={() => navigate(`/teams/${encodeURIComponent(team.team_name)}`)}
+              className="text-left"
+            >
+              <Card className="p-5 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer border border-transparent">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-800 text-base">{team.team_name}</h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Tạo lúc: {new Date(team.created_at).toLocaleDateString('vi-VN')}
+                    </p>
+                  </div>
+                  <span className="text-2xl">👥</span>
+                </div>
+                <p className="text-xs text-sky-600 mt-3 font-medium">Mở workspace →</p>
+              </Card>
+            </button>
+          ))}
         </div>
-        <div className="p-5">
-          {usersQuery.isLoading ? <LoadingSkeleton rows={5} /> : <UserTable users={users} />}
-          {usersQuery.isError ? (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-              {usersQuery.error.message}
-            </p>
-          ) : null}
-        </div>
-      </Card>
+      )}
     </div>
   )
 }

@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { getTeams } from '../services/teamsApi.js'
+import { useAuthStore } from '../../stores/authStore.js'
 
-export function useTeams({ enabled = false } = {}) {
+export const useTeams = ({ enabled = true } = {}) => {
+  const accessToken = useAuthStore(s => s.accessToken)
   return useQuery({
     queryKey: ['teams'],
     queryFn: getTeams,
-    enabled,
+    enabled: enabled && !!accessToken,
+    select: (data) => data.teams ?? data,
   })
 }

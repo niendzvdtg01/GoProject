@@ -16,6 +16,7 @@ export function TeamManagementPanel() {
   const [createMembers, setCreateMembers] = useState([DEFAULT_CREATE_MEMBER()])
   const [memberTeamName, setMemberTeamName] = useState('')
   const [memberName, setMemberName] = useState('')
+  const [memberRole, setMemberRole] = useState('member')
   const [removeTeamName, setRemoveTeamName] = useState('')
   const [removeMemberName, setRemoveMemberName] = useState('')
   const [deleteTeamName, setDeleteTeamName] = useState('')
@@ -41,11 +42,12 @@ export function TeamManagementPanel() {
   })
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ teamName, memberName }) => addTeamMember(teamName, memberName),
+    mutationFn: ({ teamName, memberName, role }) => addTeamMember(teamName, memberName, role),
     onSuccess() {
       setStatusMessage('Thêm thành viên vào đội thành công.')
       setErrorMessage('')
       setMemberName('')
+      setMemberRole('member')
     },
     onError(error) {
       setErrorMessage(getApiErrorMessage(error))
@@ -196,7 +198,7 @@ export function TeamManagementPanel() {
           className="grid gap-4 pt-4"
           onSubmit={(event) => {
             event.preventDefault()
-            addMemberMutation.mutate({ teamName: memberTeamName, memberName })
+            addMemberMutation.mutate({ teamName: memberTeamName, memberName, role: memberRole })
           }}
         >
           <Input
@@ -204,11 +206,21 @@ export function TeamManagementPanel() {
             value={memberTeamName}
             onChange={(event) => setMemberTeamName(event.target.value)}
           />
-          <Input
-            label="Tên thành viên"
-            value={memberName}
-            onChange={(event) => setMemberName(event.target.value)}
-          />
+          <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+            <Input
+              label="Tên thành viên"
+              value={memberName}
+              onChange={(event) => setMemberName(event.target.value)}
+            />
+            <Select
+              label="Vai trò"
+              value={memberRole}
+              onChange={(event) => setMemberRole(event.target.value)}
+            >
+              <option value="member">Member</option>
+              <option value="manager">Manager</option>
+            </Select>
+          </div>
           <Button type="submit" isLoading={addMemberMutation.isLoading}>
             Thêm thành viên
           </Button>

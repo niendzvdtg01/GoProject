@@ -4,15 +4,16 @@ import { ROUTES } from '../constants/routes.js'
 import { Button } from '../components/Button.jsx'
 import { useLogout } from '../hooks/useLogout.js'
 
-const navItems = [
-  { label: 'Dashboard', to: ROUTES.dashboard },
-  { label: 'Teams', to: ROUTES.teams },
-  { label: 'Profile', to: ROUTES.profile },
-]
-
 export function DashboardLayout() {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
+
+  const navItems = [
+    { label: 'Dashboard', to: ROUTES.dashboard },
+    { label: 'Teams', to: ROUTES.teams },
+    ...(user?.role === 'manager' ? [{ label: 'Import Users', to: ROUTES.import }] : []),
+    { label: 'Profile', to: ROUTES.profile },
+  ]
 
   return (
     <div className="grid min-h-screen bg-slate-100 lg:grid-cols-[280px_1fr]">

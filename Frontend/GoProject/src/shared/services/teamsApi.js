@@ -1,14 +1,11 @@
 import { api } from './axios.js'
 
-export async function getTeams() {
-  const response = await api.get('/teams')
-  return response.data.teams ?? response.data ?? []
-}
+export const getTeams = () => api.get('/teams').then(r => r.data)
 
 export async function createTeam(teamName, members = []) {
   const body = {
     teamName,
-    members: members.map((member) => ({ user_id: member.userID || member.user_id, role: member.role })),
+    members: members.map((member) => ({ username: member.userID || member.user_id, role: member.role })),
   }
 
   const response = await api.post('/teams', body)
@@ -17,7 +14,7 @@ export async function createTeam(teamName, members = []) {
 
 export async function addTeamMember(teamName, memberName, role = 'manager') {
   const response = await api.post(`/teams/${encodeURIComponent(teamName)}/members`, {
-    user_id: memberName,
+    username: memberName,
     role,
   })
   return response.data
