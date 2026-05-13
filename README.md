@@ -26,31 +26,31 @@ Backend (Go + Gin)       — http://localhost:8080/api
 
 ## Features Implemented
 
-### Stage 1 — Identity & Auth ✅
+### Stage 1 — Identity & Auth 
 - User registration with role (`manager` / `member`)
 - Login / Logout with JWT
 - In-memory token revocation on logout
 - Role-based middleware (`AuthRequired`, `RequireManager`)
 
-### Stage 2 — Team Management ✅
+### Stage 2 — Team Management 
 - Manager creates teams and assigns roles (OWNER / MANAGER / MEMBER)
 - Add / remove team members
 - List all teams the current user belongs to
 - Role hierarchy enforced: only OWNER can remove managers or delete team
 
-### Stage 3 — Asset Management ✅
+### Stage 3 — Asset Management 
 - Folders owned by users (full CRUD)
 - Notes inside folders (full CRUD)
 - Access control: owner → full; shared write → edit; shared read → read-only
 - Manager oversight: managers have implicit read-only on all assets of team members
 
-### Stage 4 — Sharing ✅
+### Stage 4 — Sharing 
 - Share a folder or note with any user by email (Read or Write)
 - Folder inheritance: sharing a folder automatically shares all its notes
 - Revoke access at any time
 - Manager oversight: read-only by default unless explicitly shared with write
 
-### Stage 5 — Bulk User Import ✅
+### Stage 5 — Bulk User Import 
 - `POST /api/users/import` — accepts a `.csv` file
 - Concurrent processing via goroutine worker pool (5 workers, channels, WaitGroup)
 - Returns summary: `{ succeeded, failed, errors[] }`
