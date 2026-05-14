@@ -9,7 +9,10 @@ require (
 	github.com/joho/godotenv v1.5.1
 )
 
-require filippo.io/edwards25519 v1.2.0 // indirect
+require (
+	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
+)
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
