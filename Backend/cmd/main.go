@@ -36,6 +36,7 @@ func main() {
 	folderRepository := database.NewFolderRepository(database.DB)
 	noteRepository := database.NewNoteRepository(database.DB)
 	permissionRepository := database.NewPermissionRepository(database.DB)
+	importTaskRepository := database.NewImportTaskRepository(database.DB)
 	//
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -43,7 +44,7 @@ func main() {
 	}
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
 	authService := service.NewAuthService(userRepository, authMiddleware)
-	userService := service.NewUserService(userRepository, authMiddleware)
+	userService := service.NewUserService(userRepository, authMiddleware, importTaskRepository)
 	teamService := service.NewTeamManagementService(teamRepository, teamMemberRepository, userRepository)
 	folderService := service.NewFolderService(folderRepository, userRepository, permissionRepository, teamMemberRepository)
 	noteService := service.NewNoteService(noteRepository, folderRepository, userRepository, permissionRepository, teamMemberRepository)

@@ -33,7 +33,7 @@ func newUserSetup(t *testing.T) (*UserService, sqlmock.Sqlmock, func()) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	auth := middleware.NewAuthMiddleware("test-secret")
-	svc := NewUserService(repository.NewUserRepository(db), auth)
+	svc := NewUserService(repository.NewUserRepository(db), auth, repository.NewImportTaskRepository(db))
 	return svc, mock, func() { db.Close() }
 }
 
@@ -190,12 +190,18 @@ func TestImportUser_Success(t *testing.T) {
 	// Two valid rows (+ header)
 	csv := "username,email,password,role\nalice,alice@example.com,password1,member\nbob,bob@example.com,password2,manager\n"
 
+	mock.ExpectExec("INSERT INTO import_tasks").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SET status = 'processing'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users (user_id, username, email, password_hash, role)")).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users (user_id, username, email, password_hash, role)")).
 		WillReturnResult(sqlmock.NewResult(2, 1))
+	mock.ExpectExec("SET status = 'completed'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	summary := svc.ImportUser(newCSVFile(csv), context.Background())
+	summary := svc.ImportUser(newCSVFile(csv), "test.csv", "test-user", context.Background())
 	if summary.Succeeded != 2 {
 		t.Errorf("expected 2 succeeded, got %d", summary.Succeeded)
 	}
@@ -205,13 +211,20 @@ func TestImportUser_Success(t *testing.T) {
 }
 
 func TestImportUser_InvalidRowFormat(t *testing.T) {
-	svc, _, cleanup := newUserSetup(t)
+	svc, mock, cleanup := newUserSetup(t)
 	defer cleanup()
 
 	// Row with only 2 columns (needs at least 3)
 	csv := "username,email\nalice,alice@example.com\n"
 
-	summary := svc.ImportUser(newCSVFile(csv), context.Background())
+	mock.ExpectExec("INSERT INTO import_tasks").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SET status = 'processing'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("SET status = 'completed'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	summary := svc.ImportUser(newCSVFile(csv), "test.csv", "test-user", context.Background())
 	if summary.Failed != 1 {
 		t.Errorf("expected 1 failed, got %d", summary.Failed)
 	}
@@ -224,11 +237,17 @@ func TestImportUser_DefaultRoleMember(t *testing.T) {
 	// Row with only 3 columns — role defaults to member
 	csv := "username,email,password\nalice,alice@example.com,password1\n"
 
+	mock.ExpectExec("INSERT INTO import_tasks").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SET status = 'processing'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users (user_id, username, email, password_hash, role)")).
 		WithArgs(sqlmock.AnyArg(), "alice", "alice@example.com", sqlmock.AnyArg(), "member").
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SET status = 'completed'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	summary := svc.ImportUser(newCSVFile(csv), context.Background())
+	summary := svc.ImportUser(newCSVFile(csv), "test.csv", "test-user", context.Background())
 	if summary.Succeeded != 1 {
 		t.Errorf("expected 1 succeeded, got %d", summary.Succeeded)
 	}
@@ -240,10 +259,16 @@ func TestImportUser_DBError(t *testing.T) {
 
 	csv := "username,email,password,role\nalice,alice@example.com,password1,member\n"
 
+	mock.ExpectExec("INSERT INTO import_tasks").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SET status = 'processing'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users (user_id, username, email, password_hash, role)")).
 		WillReturnError(errors.New("db error"))
+	mock.ExpectExec("SET status = 'completed'").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	summary := svc.ImportUser(newCSVFile(csv), context.Background())
+	summary := svc.ImportUser(newCSVFile(csv), "test.csv", "test-user", context.Background())
 	if summary.Failed != 1 {
 		t.Errorf("expected 1 failed, got %d", summary.Failed)
 	}

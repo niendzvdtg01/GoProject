@@ -7,6 +7,7 @@ import (
 	"backend/package/dtorequest"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"strings"
@@ -17,8 +18,9 @@ import (
 )
 
 type UserService struct {
-	users *repository.UserRepository
-	auth  *middleware.AuthMiddleware
+	users       *repository.UserRepository
+	auth        *middleware.AuthMiddleware
+	importTasks *repository.ImportTaskRepository
 }
 
 type ImportResult struct {
@@ -28,15 +30,17 @@ type ImportResult struct {
 }
 
 type ImportSummary struct {
+	TaskID    int64          `json:"task_id,omitempty"`
 	Succeeded int            `json:"succeeded"`
 	Failed    int            `json:"failed"`
 	Errors    []ImportResult `json:"errors"`
 }
 
-func NewUserService(users *repository.UserRepository, auth *middleware.AuthMiddleware) *UserService {
+func NewUserService(users *repository.UserRepository, auth *middleware.AuthMiddleware, importTasks *repository.ImportTaskRepository) *UserService {
 	return &UserService{
-		users: users,
-		auth:  auth,
+		users:       users,
+		auth:        auth,
+		importTasks: importTasks,
 	}
 }
 
@@ -77,12 +81,28 @@ func (s *UserService) ListUsers(ctx context.Context) ([]model.PublicUser, error)
 	return s.users.ListUsers(ctx)
 }
 
-func (u *UserService) ImportUser(file multipart.File, ctx context.Context) ImportSummary {
-	reader := csv.NewReader(file)
+func (u *UserService) ImportUser(file multipart.File, fileName, userID string, ctx context.Context) ImportSummary {
+	taskID, err := u.importTasks.CreateTask(ctx, userID, fileName)
+	if err != nil {
+		taskID = 0
+	}
 
+	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return ImportSummary{Errors: []ImportResult{}}
+		if taskID > 0 {
+			u.importTasks.MarkFailed(ctx, taskID, "failed to read CSV file")
+		}
+		return ImportSummary{TaskID: taskID, Errors: []ImportResult{}}
+	}
+
+	totalRows := len(records) - 1
+	if totalRows < 0 {
+		totalRows = 0
+	}
+
+	if taskID > 0 {
+		u.importTasks.MarkProcessing(ctx, taskID, totalRows)
 	}
 
 	workerCount := 5
@@ -127,7 +147,7 @@ func (u *UserService) ImportUser(file multipart.File, ctx context.Context) Impor
 	wg.Wait()
 	close(results)
 
-	summary := ImportSummary{Errors: []ImportResult{}}
+	summary := ImportSummary{TaskID: taskID, Errors: []ImportResult{}}
 	for result := range results {
 		if result.Success {
 			summary.Succeeded++
@@ -135,6 +155,11 @@ func (u *UserService) ImportUser(file multipart.File, ctx context.Context) Impor
 			summary.Failed++
 			summary.Errors = append(summary.Errors, result)
 		}
+	}
+
+	if taskID > 0 {
+		errorLogJSON, _ := json.Marshal(summary.Errors)
+		u.importTasks.MarkCompleted(ctx, taskID, summary.Succeeded, summary.Failed, string(errorLogJSON))
 	}
 
 	return summary

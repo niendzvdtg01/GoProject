@@ -29,9 +29,13 @@ func (h *ImportHandler) ImportUsers(c *gin.Context) {
 	}
 	defer file.Close()
 
-	summary := h.userService.ImportUser(file, c.Request.Context())
+	userID, _ := c.Get("user_id")
+	userIDStr, _ := userID.(string)
+
+	summary := h.userService.ImportUser(file, fileHeader.Filename, userIDStr, c.Request.Context())
 
 	c.JSON(http.StatusOK, gin.H{
+		"task_id":   summary.TaskID,
 		"succeeded": summary.Succeeded,
 		"failed":    summary.Failed,
 		"errors":    summary.Errors,
