@@ -77,7 +77,6 @@ export function TeamManagementPanel() {
       setErrorMessage(getApiErrorMessage(error))
     },
   })
-  console.log(createMembers)
 
   return (
     <div className="grid gap-4">

@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage/index.jsx'
 import { TeamPage } from './pages/TeamPage/index.jsx'
 import { ProfilePage } from './pages/ProfilePage/index.jsx'
 import { LoginPage } from './pages/LoginPage/index.jsx'
+import { RegisterPage } from './pages/RegisterPage/index.jsx'
 import ImportPage from './pages/ImportPage/index.jsx'
 import { DashboardLayout } from './shared/layouts/DashboardLayout.jsx'
 import { AuthLayout } from './shared/layouts/AuthLayout.jsx'
@@ -15,6 +16,7 @@ function PublicRoutes() {
   return (
     <Route element={<PublicRoute />}>
       <Route path={ROUTES.login} element={<AuthLayout><LoginPage /></AuthLayout>} />
+      <Route path={ROUTES.register} element={<AuthLayout><RegisterPage /></AuthLayout>} />
     </Route>
   )
 }

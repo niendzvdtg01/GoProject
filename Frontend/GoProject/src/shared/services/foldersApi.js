@@ -1,6 +1,7 @@
 import { api } from './axios.js'
 
 export const getFolders = () => api.get('/folders').then(r => r.data)
+export const getFolder = (id) => api.get(`/folders/${id}`).then(r => r.data)
 export const createFolder = (name) => api.post('/folders', { name }).then(r => r.data)
 export const updateFolder = (id, name) => api.put(`/folders/${id}`, { name }).then(r => r.data)
 export const deleteFolder = (id) => api.delete(`/folders/${id}`).then(r => r.data)

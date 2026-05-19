@@ -74,3 +74,4 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 	return server
 }
+ 
