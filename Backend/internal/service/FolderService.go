@@ -27,6 +27,7 @@ func NewFolderService(folder *repository.FolderRepository, users *repository.Use
 	}
 }
 
+// canRead checks: owner → explicit permission → team manager (read-only oversight).
 func (s *FolderService) canRead(requesterID string, folder model.Folder) (bool, error) {
 	if requesterID == folder.OwnerID {
 		return true, nil
@@ -48,6 +49,7 @@ func (s *FolderService) canRead(requesterID string, folder model.Folder) (bool, 
 	return isManager, nil
 }
 
+// canWrite checks: owner → explicit write permission (read grant is insufficient; managers have no write access).
 func (s *FolderService) canWrite(requesterID string, folder model.Folder) (bool, error) {
 	if requesterID == folder.OwnerID {
 		return true, nil

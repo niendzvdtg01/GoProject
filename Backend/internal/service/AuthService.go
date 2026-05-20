@@ -33,6 +33,7 @@ func NewAuthService(users *repository.UserRepository, auth *middleware.AuthMiddl
 	}
 }
 
+// Login validates credentials and returns a signed JWT; both wrong-email and wrong-password map to ErrInvalidCredentials to prevent user enumeration.
 func (s *AuthService) Login(input dtorequest.LoginRequest) (AuthResult, error) {
 	user, err := s.users.GetUserByEmail(strings.ToLower(strings.TrimSpace(input.Email)))
 	if err != nil {
@@ -57,6 +58,7 @@ func (s *AuthService) Login(input dtorequest.LoginRequest) (AuthResult, error) {
 	}, nil
 }
 
+// Logout adds the token's JTI to the in-memory revocation list; passing the expiry lets the background sweeper reclaim memory automatically.
 func (s *AuthService) Logout(token string) error {
 	claims, err := s.auth.ValidateToken(token)
 	if err != nil {

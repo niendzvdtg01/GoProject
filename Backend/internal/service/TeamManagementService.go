@@ -33,6 +33,7 @@ func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *rep
 	}
 }
 
+// CreateTeam creates a team, assigns the caller as OWNER, and optionally adds initial members resolved by username.
 func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, members []dtorequest.MemberRequest) (int, error) {
 	_, err := s.teams.GetTeamByName(teamName)
 	if err == nil {
@@ -44,13 +45,10 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 		return 0, err
 	}
 
-	// Add the creator as the owner of the team
-	err = s.teamMembers.AddTeamMember(teamID, creatorUserID, roleOwner)
-	if err != nil {
+	if err = s.teamMembers.AddTeamMember(teamID, creatorUserID, roleOwner); err != nil {
 		return 0, fmt.Errorf("error adding team creator as owner: %w", err)
 	}
 
-	// Add additional members to the team
 	for _, m := range members {
 		user, err := s.users.GetUserByUsername(m.MemberName)
 		if err != nil {
@@ -65,6 +63,7 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 	return teamID, nil
 }
 
+// AddMemberByName adds a user to a team; requires the actor to be OWNER or MANAGER, re-checked from DB to avoid stale JWT claims.
 func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID string, memberName string, role string) (model.Team, error) {
 	team, err := s.teams.GetTeamByName(teamName)
 	if err != nil {
@@ -76,7 +75,6 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 		return model.Team{}, fmt.Errorf("error user is not a member of the team: %w", err)
 	}
 
-	// Only owner and managers can add members
 	if strings.EqualFold(actorRole, roleMember) {
 		return model.Team{}, errors.New("error: only the team owner and managers can add members")
 	}
@@ -95,6 +93,7 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 	return team, nil
 }
 
+// RemoveMemberByName removes a team member with a three-tier hierarchy: OWNER > MANAGER > MEMBER; the OWNER cannot be removed via this path.
 func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID string, memberName string) error {
 	team, err := s.teams.GetTeamByName(teamName)
 	if err != nil {
@@ -123,12 +122,11 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 		return err
 	}
 
-	// Managers can only be removed by owners
+	// Only OWNER can remove a MANAGER; prevents privilege-escalation by collusion.
 	if strings.EqualFold(memberRole, roleManager) && !strings.EqualFold(actorRole, roleOwner) {
 		return errors.New("error: only the team owner can remove a manager")
 	}
 
-	// Owners cannot be removed via this method (or need special logic)
 	if strings.EqualFold(memberRole, roleOwner) {
 		return errors.New("error: team owner cannot be removed")
 	}
@@ -141,9 +139,9 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 	return nil
 }
 
+// DeleteTeam permanently removes a team; only the OWNER may do so.
 func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) error {
 	team, teamErr := s.teams.GetTeamByName(teamName)
-
 	if teamErr != nil {
 		return fmt.Errorf("Error: can not find the team: %w", teamErr)
 	}
@@ -153,7 +151,6 @@ func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) 
 		return fmt.Errorf("error team not found: %w", err)
 	}
 
-	// Check ownership: only the owner can delete the team
 	if teamMember != roleOwner {
 		fmt.Println(teamMember)
 		return errors.New("error: only the team owner can delete the team")

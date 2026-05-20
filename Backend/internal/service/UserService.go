@@ -50,6 +50,7 @@ func NewUserService(users *repository.UserRepository, auth *middleware.AuthMiddl
 	}
 }
 
+// Register creates a user account and returns a ready-to-use JWT; role is validated before hashing to avoid wasted bcrypt work.
 func (s *UserService) Register(ctx context.Context, input dtorequest.RegisterRequest) (AuthResult, error) {
 	if input.Role != "manager" && input.Role != "member" {
 		return AuthResult{}, ErrInvalidRole
@@ -87,8 +88,7 @@ func (s *UserService) ListUsers(ctx context.Context) ([]model.PublicUser, error)
 	return s.users.ListUsers(ctx)
 }
 
-// ImportUser processes a CSV file synchronously and returns the summary.
-// Used by tests; the HTTP handler uses CreateImportTask + ProcessImportAsync instead.
+// ImportUser runs a CSV import synchronously; use CreateImportTask + ProcessImportAsync from HTTP handlers to avoid blocking.
 func (u *UserService) ImportUser(file io.Reader, fileName, userID string, ctx context.Context) ImportSummary {
 	taskID, err := u.importTasks.CreateTask(ctx, userID, fileName)
 	if err != nil {
@@ -101,12 +101,12 @@ func (u *UserService) ImportUser(file io.Reader, fileName, userID string, ctx co
 	return summary
 }
 
-// CreateImportTask creates the DB record and returns the task ID for async handler use.
+// CreateImportTask persists an import_tasks row in "pending" state and returns the task ID before the background goroutine starts.
 func (u *UserService) CreateImportTask(fileName, userID string, ctx context.Context) (int64, error) {
 	return u.importTasks.CreateTask(ctx, userID, fileName)
 }
 
-// ProcessImportAsync is called in a goroutine by the handler.
+// ProcessImportAsync is the goroutine entry point for async CSV imports; cleans up the temp file, caps runtime at 1 hour, and converts panics to task failures.
 func (u *UserService) ProcessImportAsync(taskID int64, filePath, userID string) {
 	defer os.Remove(filePath)
 
@@ -134,6 +134,7 @@ func (u *UserService) ProcessImportAsync(taskID int64, filePath, userID string) 
 	}
 }
 
+// worker drains jobs and calls Register for each row, reusing its business-rule validation for the bulk path.
 func (u *UserService) worker(jobs <-chan dtorequest.RegisterRequest, results chan<- ImportResult, wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 
@@ -154,10 +155,12 @@ func (u *UserService) worker(jobs <-chan dtorequest.RegisterRequest, results cha
 	}
 }
 
+// importProcess runs a fan-out/fan-in worker pool over the CSV and returns the final ImportSummary with dual-trigger progress updates (every 500 rows or 2 s).
 func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.Reader, totalRows int) (ImportSummary, error) {
 	reader := csv.NewReader(file)
-	reader.FieldsPerRecord = -1
+	reader.FieldsPerRecord = -1 // tolerate varying column counts
 
+	// Skip header before marking processing so it isn't counted as a failed row.
 	if _, err := reader.Read(); err != nil {
 		return ImportSummary{}, fmt.Errorf("cannot read header: %w", err)
 	}
@@ -178,13 +181,12 @@ func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.R
 		go u.worker(jobs, results, &wg, ctx)
 	}
 
-	go func() {
+	go func() { // closer: signals aggregator when all workers finish
 		wg.Wait()
 		close(results)
 	}()
 
-	// Producer: reads CSV rows and sends to workers
-	go func() {
+	go func() { // producer: parses CSV rows and dispatches to the worker pool
 		defer close(jobs)
 		rowNum := 1
 		for {
@@ -212,7 +214,7 @@ func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.R
 				continue
 			}
 
-			role := "member"
+			role := "member" // default when role column is absent
 			if len(row) >= 4 {
 				role = row[3]
 			}
@@ -231,7 +233,6 @@ func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.R
 		}
 	}()
 
-	// Consumer: collect results and periodically persist progress
 	summary := ImportSummary{TaskID: taskID, Errors: []ImportResult{}}
 	const progressBatch = 500
 	progressTicker := time.NewTicker(2 * time.Second)
@@ -242,7 +243,7 @@ func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.R
 		select {
 		case result, ok := <-results:
 			if !ok {
-				goto done
+				goto done // all workers finished
 			}
 			summary.Processed++
 			if result.Success {
@@ -274,6 +275,7 @@ done:
 	return summary, err
 }
 
+// countCSVRows counts data rows (excluding header) using a 1 MB buffer to handle long lines without reading the whole file into memory.
 func countCSVRows(path string) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {

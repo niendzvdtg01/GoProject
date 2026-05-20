@@ -23,6 +23,7 @@ func NewSharing(notes *repository.NoteRepository, folder *repository.FolderRepos
 	}
 }
 
+// ShareAsset grants a permission to a user (by email) on a note or folder; sharing a folder propagates the permission to its current notes.
 func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy string) error {
 	user, err := s.users.GetUserByEmail(req.Email)
 	if err != nil {
@@ -57,7 +58,7 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 		return err
 	}
 
-	if assetType == repository.AssetTypeFolder {
+	if assetType == repository.AssetTypeFolder { // propagate to contained notes
 		notes, err := s.notes.ListNotesByFolder(assetID)
 		if err != nil {
 			return fmt.Errorf("list notes for folder inheritance: %w", err)
@@ -73,6 +74,7 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 	return nil
 }
 
+// RevokeAccess removes a permission from a user (by email); revoking a folder also cascades to its contained notes.
 func (s *SharingService) RevokeAccess(req dtorequest.RevokeAccessRequest, revokedBy string) error {
 	user, err := s.users.GetUserByEmail(req.Email)
 	if err != nil {
@@ -95,13 +97,13 @@ func (s *SharingService) RevokeAccess(req dtorequest.RevokeAccessRequest, revoke
 		return errors.New("error: note_id or folder_id is required")
 	}
 
-	_ = revokedBy
+	_ = revokedBy // reserved for audit logging
 
 	if err := s.permission.RevokePermission(assetType, assetID, user.UserID); err != nil {
 		return err
 	}
 
-	if assetType == repository.AssetTypeFolder {
+	if assetType == repository.AssetTypeFolder { // cascade: revoke inherited note permissions
 		notes, err := s.notes.ListNotesByFolder(assetID)
 		if err != nil {
 			return fmt.Errorf("list notes for folder revocation: %w", err)

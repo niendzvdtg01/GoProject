@@ -27,6 +27,7 @@ func NewNoteService(notes *repository.NoteRepository, folder *repository.FolderR
 	}
 }
 
+// canRead checks: owner → note permission → folder permission (inherited) → team manager.
 func (s *NoteService) canRead(requesterID string, note model.Note) (bool, error) {
 	if requesterID == note.OwnerID {
 		return true, nil
@@ -41,6 +42,7 @@ func (s *NoteService) canRead(requesterID string, note model.Note) (bool, error)
 		return false, err
 	}
 
+	// Folder permission satisfies note read access (inherited from ShareAsset propagation).
 	folderPerm, err := s.permission.GetPermissionByAssetAndUser(repository.AssetTypeFolder, note.FolderID, requesterID)
 	if err == nil {
 		_ = folderPerm
@@ -62,6 +64,7 @@ func (s *NoteService) canRead(requesterID string, note model.Note) (bool, error)
 	return isManager, nil
 }
 
+// canWrite checks: owner → note write permission → folder write permission (managers excluded, same as FolderService.canWrite).
 func (s *NoteService) canWrite(requesterID string, note model.Note) (bool, error) {
 	if requesterID == note.OwnerID {
 		return true, nil
@@ -86,6 +89,7 @@ func (s *NoteService) canWrite(requesterID string, note model.Note) (bool, error
 	return false, nil
 }
 
+// CreateNote creates a note in a folder; only the folder owner may add notes (shared write access is insufficient).
 func (s *NoteService) CreateNote(ctx context.Context, folderID int, ownerID, title, content string) (model.Note, error) {
 	folder, err := s.folder.GetFolderByID(folderID)
 	if err != nil {
@@ -121,6 +125,7 @@ func (s *NoteService) GetNote(ctx context.Context, noteID int, requesterID strin
 	return note, nil
 }
 
+// ListFolderNotes returns all notes in a folder; access is checked at the folder level (ownership, explicit permission, or manager).
 func (s *NoteService) ListFolderNotes(ctx context.Context, folderID int, requesterID string) ([]model.Note, error) {
 	folder, err := s.folder.GetFolderByID(folderID)
 	if err != nil {
