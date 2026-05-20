@@ -13,6 +13,7 @@ export function Toast({ message, type = 'success', onClose, duration = 4000 }) {
     success: 'bg-emerald-600 text-white',
     error: 'bg-red-600 text-white',
     warning: 'bg-amber-500 text-white',
+    info: 'bg-sky-600 text-white',
   }
 
   return (

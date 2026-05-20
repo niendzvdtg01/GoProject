@@ -6,10 +6,16 @@ export async function getUsers() {
   return (response.data.users ?? []).map(normalizeUser)
 }
 
-export const importUsers = (file) => {
+export async function startImport(file) {
   const formData = new FormData()
   formData.append('file', file)
-  return api.post('/users/import', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(r => r.data)
+  const r = await api.post('/users/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return r.data
+}
+
+export async function getImportTask(taskId) {
+  const r = await api.get(`/import-tasks/${taskId}`)
+  return r.data
 }
