@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"backend/internal/model"
 	"context"
 	"database/sql"
 	"time"
@@ -52,4 +53,30 @@ func (r *ImportTaskRepository) MarkFailed(ctx context.Context, taskID int64, rea
 		reason, time.Now(), taskID,
 	)
 	return err
+}
+
+func (r *ImportTaskRepository) UpdateProgress(ctx context.Context, taskID int64, processedRows int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE import_tasks SET processed_rows = ? WHERE task_id = ?`,
+		processedRows, taskID,
+	)
+	return err
+}
+
+func (r *ImportTaskRepository) GetTask(ctx context.Context, taskID int64) (*model.ImportTask, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT task_id, created_by, file_name, status, total_rows, processed_rows, succeeded, failed, error_log, created_at, started_at, completed_at
+		 FROM import_tasks WHERE task_id = ?`, taskID,
+	)
+
+	var task model.ImportTask
+	var errorLog sql.NullString
+	err := row.Scan(&task.TaskID, &task.CreatedBy, &task.FileName, &task.Status,
+		&task.TotalRows, &task.ProcessedRows, &task.Succeeded, &task.Failed,
+		&errorLog, &task.CreatedAt, &task.StartedAt, &task.CompletedAt)
+	if err != nil {
+		return nil, err
+	}
+	task.ErrorLog = errorLog.String
+	return &task, nil
 }

@@ -38,6 +38,8 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 			userApi.POST("/import", auth.AuthRequired(), importHandler.ImportUsers)
 		}
 
+		serverRouting.GET("/import-tasks/:id", auth.AuthRequired(), importHandler.GetImportTask)
+
 		teamApi := serverRouting.Group("/teams")
 		{
 			teamApi.GET("", auth.AuthRequired(), teamhandler.ListTeams)
