@@ -63,6 +63,15 @@ func (r *ImportTaskRepository) UpdateProgress(ctx context.Context, taskID int64,
 	return err
 }
 
+func (r *ImportTaskRepository) CountActiveByUser(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM import_tasks WHERE created_by = ? AND status IN ('pending', 'processing')`,
+		userID,
+	).Scan(&count)
+	return count, err
+}
+
 func (r *ImportTaskRepository) GetTask(ctx context.Context, taskID int64) (*model.ImportTask, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT task_id, created_by, file_name, status, total_rows, processed_rows, succeeded, failed, error_log, created_at, started_at, completed_at

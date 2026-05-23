@@ -12,8 +12,10 @@ import (
 
 func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthService, userService *service.UserService, users *database.UserRepository, teamService *service.TeamManagementService, folderService *service.FolderService, noteService *service.NoteService, sharingService *service.SharingService) *gin.Engine {
 	server := gin.Default()
+	rateLimitCfg := config.NewRateLimitConfig()
 
 	server.Use(config.NewCorsConfig().CustomCORS())
+	server.Use(rateLimitCfg.RateLimitEnpoint())
 
 	serverRouting := server.Group("/api")
 	{
@@ -35,7 +37,7 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 		{
 			userApi.POST("/register", userhandler.Register)
 			userApi.GET("", auth.AuthRequired(), userhandler.ListUsers)
-			userApi.POST("/import", auth.AuthRequired(), importHandler.ImportUsers)
+			userApi.POST("/import", auth.AuthRequired(), rateLimitCfg.ImportUserRateLimit(), importHandler.ImportUsers)
 		}
 
 		serverRouting.GET("/import-tasks/:id", auth.AuthRequired(), importHandler.GetImportTask)
@@ -76,4 +78,3 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 
 	return server
 }
- 

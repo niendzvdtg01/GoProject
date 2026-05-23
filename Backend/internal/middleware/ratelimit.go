@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -126,6 +127,37 @@ func (erl *EndpointRateLimiter) Middleware() gin.HandlerFunc {
 
 		c.JSON(http.StatusTooManyRequests, gin.H{
 			"error":       "too many requests for this endpoint",
+			"retry_after": retryAfter.Seconds(),
+		})
+		c.Abort()
+	}
+}
+
+// UserRateLimiter limits authenticated endpoints by user_id instead of client IP.
+type UserRateLimiter struct {
+	*RateLimiter
+}
+
+func NewUserRateLimiter(requestsPerWindow int, window time.Duration) *UserRateLimiter {
+	return &UserRateLimiter{NewRateLimiter(requestsPerWindow, window)}
+}
+
+func (u *UserRateLimiter) RateLimit() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.Next()
+			return
+		}
+
+		retryAfter, allowed := u.allow(fmt.Sprintf("%v", userID))
+		if allowed {
+			c.Next()
+			return
+		}
+
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       "too many requests, please wait before submitting again",
 			"retry_after": retryAfter.Seconds(),
 		})
 		c.Abort()

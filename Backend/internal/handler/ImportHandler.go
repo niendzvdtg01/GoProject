@@ -2,6 +2,7 @@ package handler
 
 import (
 	"backend/internal/service"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxUploadSize = 10 * 1024 * 1024 // 10 MB
+
 type ImportHandler struct {
 	userService *service.UserService
 }
@@ -21,9 +24,20 @@ func NewImportHandler(userService *service.UserService) *ImportHandler {
 }
 
 func (h *ImportHandler) ImportUsers(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
+		if err.Error() == "http: request body too large" {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large, maximum 10MB"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+
+	if fileHeader.Size > maxUploadSize {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large, maximum 10MB"})
 		return
 	}
 
@@ -56,6 +70,10 @@ func (h *ImportHandler) ImportUsers(c *gin.Context) {
 	taskID, err := h.userService.CreateImportTask(fileHeader.Filename, userIDStr, c.Request.Context())
 	if err != nil {
 		os.Remove(tmpPath)
+		if errors.Is(err, service.ErrTooManyActiveImports) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
 		return
 	}

@@ -9,10 +9,12 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -21,6 +23,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrTooManyActiveImports = errors.New("you already have an active import task in progress, wait for it to complete")
+
+const maxConcurrentImportsPerUser = 1
 
 type UserService struct {
 	users       *repository.UserRepository
@@ -102,7 +108,15 @@ func (u *UserService) ImportUser(file io.Reader, fileName, userID string, ctx co
 }
 
 // CreateImportTask persists an import_tasks row in "pending" state and returns the task ID before the background goroutine starts.
+// Returns ErrTooManyActiveImports if the user already has a pending or processing task.
 func (u *UserService) CreateImportTask(fileName, userID string, ctx context.Context) (int64, error) {
+	count, err := u.importTasks.CountActiveByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("check active tasks: %w", err)
+	}
+	if count >= maxConcurrentImportsPerUser {
+		return 0, ErrTooManyActiveImports
+	}
 	return u.importTasks.CreateTask(ctx, userID, fileName)
 }
 
@@ -167,8 +181,8 @@ func (u *UserService) importProcess(ctx context.Context, taskID int64, file io.R
 
 	u.importTasks.MarkProcessing(ctx, taskID, totalRows)
 
-	const (
-		workerCount   = 5
+	var (
+		workerCount   = runtime.NumCPU()
 		jobBufferSize = 100
 	)
 
