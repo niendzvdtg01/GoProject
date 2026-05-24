@@ -1,391 +1,136 @@
 # GoProject — User, Team & Asset Management
 
-A full-stack web application for managing users, teams, folders, and notes with role-based access control, asset sharing, and async bulk import.
-
----
-
-## Tech Stack
-
-### Backend
-
-| Component | Technology | Version |
-|---|---|---|
-| Language | Go | 1.26.2 |
-| HTTP Framework | Gin | 1.12.0 |
-| Database | MySQL | via Docker |
-| Driver | go-sql-driver/mysql | 1.10.0 |
-| Auth | golang-jwt/jwt | v5.3.1 |
-| Password | golang.org/x/crypto (bcrypt) | 0.49.0 |
-| Validation | go-playground/validator | v10.30.2 |
-| UUID | google/uuid | 1.6.0 |
-| Config | joho/godotenv | 1.5.1 |
-| Test mock | DATA-DOG/go-sqlmock | 1.5.2 |
-
-### Frontend
-
-| Component | Technology | Version |
-|---|---|---|
-| UI Library | React | 19 |
-| Build Tool | Vite | 8 |
-| Server State | TanStack Query | v5.100 |
-| Client State | Zustand | v5 |
-| Styling | Tailwind CSS | v4 |
-| Router | React Router | v7 |
-| Forms | React Hook Form + Zod | v7 + v4 |
-| HTTP Client | Axios | 1.15 |
+A full-stack collaborative note platform built on Go and React. Managers provision users, organize folders and notes, share assets by email, and bulk-import users via CSV — all served from a single containerized stack.
 
 ---
 
 ## Architecture
 
-```
-Browser (React SPA)          — http://localhost:5173
-        │
-        │  REST / JSON over HTTP
-        ▼
-Go + Gin API Server          — http://localhost:8080/api
-        │
-        │  database/sql (raw SQL, no ORM)
-        ▼
-MySQL Database               — localhost:3311 (Docker)
+```text
+React SPA (Vite)  ──REST/JSON──►  Go + Gin API (:8080)  ──►  MySQL 8.4
+                                         │
+                               Redis (cache)  +  RabbitMQ (events)
+                                         │
+                         Promtail → Loki → Grafana (observability)
 ```
 
-### Backend Layer Model
-
-```
-Handler  →  Service  →  Repository  →  MySQL
-```
-
-- **Handler** — parses HTTP request, calls service, writes JSON response. No business logic.
-- **Service** — all business rules, authorization checks, cross-entity coordination.
-- **Repository** — raw SQL queries only; returns domain models. No logic.
-
-### Frontend Module Map
-
-```
-src/
-├── pages/               # Route-level components (one folder per page)
-│   ├── LoginPage/       # Login form + useLogin hook + Zod schema
-│   ├── RegisterPage/    # Register form + useRegister hook + Zod schema
-│   ├── DashboardPage/   # User list table + summary cards
-│   ├── TeamPage/        # Team workspace + management panel
-│   ├── ImportPage/      # Async multi-file CSV import + live polling
-│   └── ProfilePage/     # Current user profile
-├── shared/
-│   ├── components/      # Button, Card, Table, Input, Select, Toast,
-│   │                    # RoleBadge, EmptyState, LoadingSkeleton, DashboardStats
-│   ├── hooks/           # useUsers, useTeams, useLogout
-│   ├── layouts/         # DashboardLayout, AuthLayout
-│   ├── services/        # Axios instance + API modules per domain
-│   │                    # (authApi, usersApi, teamsApi, foldersApi, notesApi, sharingApi)
-│   ├── constants/       # roles.js, routes.js
-│   ├── types/           # user.js (normalizer)
-│   └── utils/           # ProtectedRoute, PublicRoute, storage, formatDate
-└── stores/              # Zustand stores: authStore, uiStore, importStore
-```
+The backend follows a strict **Handler → Service → Repository** layering with no ORM. Raw `database/sql` keeps query plans predictable and eliminates N+1 surprises at the cost of explicit SQL in ~8 repository files.
 
 ---
 
 ## Features
 
-### Auth
-- Registration with role (`manager` / `member`); JWT issued immediately on success
-- Login / Logout; logout invalidates the token via in-memory JTI revocation list
-- `AuthRequired` middleware validates JWT on every protected route
-- `RequireManager` middleware gates manager-only endpoints
+### Authentication & Authorization
 
-### Team Management
-- Manager creates a team; creator is automatically assigned `OWNER`
-- Three-tier team hierarchy: `OWNER` > `MANAGER` > `MEMBER`
-  - Only `OWNER` can remove managers or delete the team
-  - `OWNER` and `MANAGER` can add / remove members
-- List all teams the authenticated user belongs to
+JWT tokens (HS256, **24-hour expiry**) are issued on login and validated by `AuthRequired` middleware on every protected route. Logout revokes the token via an in-memory JTI blocklist. Two roles — `manager` and `member` — gate endpoint access at the middleware layer.
 
-### Asset Management (Folders & Notes)
-- Full CRUD on folders and notes; access is always checked against the requester
-- Permission cascade: `OWNER` → `WRITE` share → `READ` share → team manager (read-only oversight)
-- Folder sharing propagates permissions to all notes currently in the folder
-- Revoking folder access cascades to contained notes
+### Team Hierarchy
+
+Three-tier structure: `OWNER > MANAGER > MEMBER`. The creator is automatically assigned `OWNER`. Managers can add and remove members; only owners may remove managers or delete the team. Membership is cached in Redis (**30-minute TTL**) to avoid repeated DB joins on every access check.
+
+### Folder & Note Management
+
+**22 REST endpoints** across 6 domains cover the full asset lifecycle. Every read or write runs a 4-stage access check:
+
+1. Owner → full access
+2. Explicit permission — resolved from a Redis ACL cache (**30-minute TTL**)
+3. Team manager of the owner → read-only oversight
+4. Deny (HTTP 403)
+
+Sharing a folder propagates permissions to all notes inside it instantly. Revoking cascades the same way. Both operations publish invalidation events to RabbitMQ so distributed cache entries are cleared across instances.
 
 ### Async Bulk Import
-- `POST /api/users/import` accepts a `.csv` file and returns a `task_id` immediately (HTTP 202)
-- A goroutine worker pool (5 workers + buffered channels) processes rows concurrently
-- Progress is persisted to DB on every 500 rows **or** every 2 seconds (dual-trigger)
-- `GET /api/import-tasks/:id` returns live status, progress, and error details
-- Frontend polls every 2 s using TanStack Query `refetchInterval`; stops automatically when `completed` or `failed`
-- Multiple files can be queued simultaneously; task list survives tab navigation via Zustand + `sessionStorage`
 
-### Middleware Stack
-| Middleware | Detail |
-|---|---|
-| CORS | Configurable via `CorsConfig`; applied globally |
-| Request ID | Attaches a UUID to every request for tracing |
-| Logging | Logs method, path, status, latency per request |
-| Auth | JWT validation + JTI revocation check |
-| Rate Limiting | Two-tier: global IP limiter + per-endpoint limiter with independent windows and cleanup goroutine |
+`POST /api/users/import` returns HTTP 202 with a `task_id` in under 5 ms regardless of file size. A **5-worker goroutine pool** processes rows concurrently, flushing progress to the DB every **500 rows or 2 seconds** (whichever fires first). Clients poll `GET /api/import-tasks/:id`; the React frontend uses TanStack Query `refetchInterval: 2000` and stops automatically on terminal state (`completed` / `failed`).
 
----
+### Rate Limiting
 
-## API Reference
+Custom two-tier in-memory limiter — zero external dependencies, independent cleanup goroutine:
 
-| Method | Path | Auth | Role | Description |
-|---|---|---|---|---|
-| POST | `/api/auth/login` | — | — | Login |
-| POST | `/api/auth/logout` | ✓ | — | Logout (revoke token) |
-| POST | `/api/users/register` | — | — | Register |
-| GET | `/api/users` | ✓ | manager | List all users |
-| POST | `/api/users/import` | ✓ | manager | Start async CSV import |
-| GET | `/api/import-tasks/:id` | ✓ | — | Poll import task status |
-| GET | `/api/teams` | ✓ | — | List teams for current user |
-| POST | `/api/teams` | ✓ | manager | Create team |
-| POST | `/api/teams/:name/members` | ✓ | manager | Add member |
-| DELETE | `/api/teams/:name/members/:member` | ✓ | manager | Remove member |
-| DELETE | `/api/teams/:name` | ✓ | manager | Delete team |
-| POST | `/api/folders` | ✓ | — | Create folder |
-| GET | `/api/folders` | ✓ | — | List own folders |
-| GET | `/api/folders/:id` | ✓ | — | Get folder |
-| PUT | `/api/folders/:id` | ✓ | — | Update folder |
-| DELETE | `/api/folders/:id` | ✓ | — | Delete folder |
-| POST | `/api/folders/:id/notes` | ✓ | — | Create note in folder |
-| GET | `/api/folders/:id/notes` | ✓ | — | List notes in folder |
-| GET | `/api/notes/:id` | ✓ | — | Get note |
-| PUT | `/api/notes/:id` | ✓ | — | Update note |
-| DELETE | `/api/notes/:id` | ✓ | — | Delete note |
-| POST | `/api/share` | ✓ | — | Share asset by email |
-| DELETE | `/api/share` | ✓ | — | Revoke access |
+| Endpoint | Limit |
+| --- | --- |
+| `POST /auth/login` | 10,000 req / min / IP |
+| `POST /users/register` | 10,000 req / min / IP |
+| `POST /users/import` | 5 req / min / IP · 3 req / 10 min per user |
+
+### Observability
+
+All container logs are shipped by **Promtail 3.5.6** to **Loki 3.5.6** and visualized in a **Grafana 11.6.1** dashboard provisioned automatically on first boot. The backend emits structured JSON via **zerolog**; Promtail extracts `level`, `request_id`, and timestamp as Loki labels for fast log-line filtering.
 
 ---
 
-## Project Structure
+## Numbers at a Glance
 
-```
-GoProject/
-├── test.csv                          # Sample import file
-│
-├── Backend/
-│   ├── cmd/main.go                   # Entry point: wires all layers, starts on :8080
-│   ├── api/MainRouting.go            # Route registration and middleware attachment
-│   ├── db.yaml                       # Docker Compose for MySQL
-│   ├── migration_add_role.sql        # Schema migration: role column
-│   ├── migration_add_owner_to_teams.sql
-│   ├── go.mod / go.sum
-│   └── internal/
-│       ├── config/
-│       │   ├── DbConfig.go           # DSN builder from env vars
-│       │   └── CorsConfig.go         # CORS policy
-│       ├── handler/
-│       │   ├── AuthHandler.go
-│       │   ├── UserHandler.go
-│       │   ├── ImportHandler.go      # Async import: saves temp file, spawns goroutine
-│       │   ├── TeamHandler.go
-│       │   ├── FolderHandler.go
-│       │   ├── NoteHandler.go
-│       │   └── SharingHandler.go
-│       ├── middleware/
-│       │   ├── auth.go               # JWT validation + in-memory revocation
-│       │   ├── cors.go
-│       │   ├── ratelimit.go          # Custom IP + per-endpoint rate limiter
-│       │   ├── logging.go
-│       │   └── requestid.go
-│       ├── model/
-│       │   ├── User.go
-│       │   ├── Team.go / TeamMember.go
-│       │   ├── Folder.go / Note.go
-│       │   ├── Permission.go
-│       │   └── ImportTask.go
-│       ├── repository/
-│       │   ├── Database.go           # Connection pool (25 max open, 5 idle)
-│       │   ├── UserRepository.go
-│       │   ├── TeamRepository.go / TeamMemberRepository.go
-│       │   ├── FolderRepository.go / NoteRepository.go
-│       │   ├── PermissionRepository.go
-│       │   └── ImportTaskRepository.go
-│       └── service/
-│           ├── AuthService.go
-│           ├── UserService.go        # Register + async CSV import pipeline
-│           ├── TeamManagementService.go
-│           ├── FolderService.go      # Permission cascade logic
-│           ├── NoteService.go        # Four-stage access check
-│           └── SharingService.go     # Folder → note inheritance
-│
-└── Frontend/GoProject/
-    ├── index.html
-    ├── vite.config.js
-    ├── package.json
-    └── src/
-        ├── App.jsx                   # Route definitions
-        ├── main.jsx                  # React root + QueryClient + Router
-        ├── pages/
-        │   ├── LoginPage/            # LoginForm, useLogin, authSchemas
-        │   ├── RegisterPage/         # RegisterForm, useRegister, authSchemas
-        │   ├── DashboardPage/        # UserTable, UserSummaryCards
-        │   ├── TeamPage/             # TeamWorkspace, TeamManagementPanel
-        │   ├── ImportPage/           # Multi-file async import + live polling
-        │   ├── ProfilePage/
-        │   └── NotFoundPage/
-        ├── shared/
-        │   ├── components/           # Button, Card, Table, Input, Select,
-        │   │                         # Toast, RoleBadge, EmptyState,
-        │   │                         # LoadingSkeleton, DashboardStats
-        │   ├── hooks/                # useUsers, useTeams, useLogout
-        │   ├── layouts/              # DashboardLayout, AuthLayout
-        │   ├── services/             # authApi, usersApi, teamsApi,
-        │   │                         # foldersApi, notesApi, sharingApi,
-        │   │                         # axios instance, interceptor, apiError
-        │   ├── constants/            # roles, routes
-        │   ├── types/                # user normalizer
-        │   └── utils/                # ProtectedRoute, PublicRoute, storage, formatDate
-        └── stores/
-            ├── authStore.js          # JWT token + user; persisted to localStorage
-            ├── uiStore.js            # Sidebar, theme
-            └── importStore.js        # Task ID list; persisted to sessionStorage
-```
+| Metric | Value |
+| --- | --- |
+| REST endpoints | 22 across 6 domains |
+| Database tables | 9 (+2 migration scripts) |
+| DB indexes | 13 (PK, UNIQUE, FK-support) |
+| DB connection pool | 25 max open · 5 idle · 5-min lifetime |
+| Redis cache TTL — ACL & team | 30 min |
+| Redis cache TTL — asset metadata | 1 h |
+| JWT expiry | 24 h |
+| Import goroutine pool | 5 workers |
+| Import progress flush cadence | every 500 rows or 2 s |
+| Docker image size | ~30 MB (multi-stage, alpine base) |
 
 ---
 
-## Tech Stack — Trade-offs
+## Tech Stack
 
-### Go + Gin
-**Advantages**
-- Compiled binary; low memory footprint and fast cold start compared to Node/Python equivalents
-- Goroutine-based concurrency maps naturally to the worker-pool import pipeline
-- Strong typing catches entire classes of bugs at compile time
-
-**Trade-offs**
-- More boilerplate than Express or FastAPI for simple CRUD endpoints
-- No built-in ORM means query strings are scattered across repository files; schema refactors require manual updates in multiple places
-
-### Raw SQL (`database/sql`, no ORM)
-**Advantages**
-- Full control over query shape and index usage; no N+1 surprises hidden behind an abstraction
-- Zero runtime reflection overhead
-
-**Trade-offs**
-- No automatic schema migrations; `migration_*.sql` files must be applied manually
-- Typos in column names are only caught at runtime, not compile time
-- Joining or changing a table name requires grep-and-replace across repository files
-
-### JWT (HS256, 24h, in-memory revocation)
-**Advantages**
-- Stateless verification: any instance can validate a token without a DB or cache lookup
-- Simple to implement and reason about for single-instance deployments
-
-**Trade-offs**
-- The JTI revocation map is in-memory; server restart re-validates all previously revoked tokens until they expire naturally
-- 24h expiry is long for sensitive operations; without refresh tokens, users must log in again after expiry
-- A single shared `JWT_SECRET` means all tokens are invalidated if the secret rotates
-
-### Custom In-Memory Rate Limiter
-**Advantages**
-- Zero external dependencies; works out of the box
-- Per-endpoint and global limits configurable independently at startup
-
-**Trade-offs**
-- State is local to one process; does not share limits across multiple backend instances
-- All counters reset on restart
-
-### TanStack Query v5 (frontend)
-**Advantages**
-- Declarative server-state management; handles caching, background refetch, and `refetchInterval` (used for import polling) with minimal code
-- Deduplicates in-flight requests automatically
-
-**Trade-offs**
-- Adds ~13 KB (gzip) to the bundle; overkill if the app only has a handful of API calls
-- v5 breaking changes (function signatures for `refetchInterval`) require attention when upgrading
-
-### Zustand v5 (frontend)
-**Advantages**
-- Minimal boilerplate compared to Redux; store slices are plain functions
-- `persist` middleware integrates cleanly with `localStorage` / `sessionStorage`
-
-**Trade-offs**
-- No built-in devtools comparable to Redux DevTools (requires a separate plugin)
-- No enforced immutability; accidental mutation bypasses subscribers silently
-
-### React Hook Form + Zod
-**Advantages**
-- Uncontrolled inputs mean zero re-renders per keystroke; good for large forms
-- Zod schemas are reusable as TypeScript/runtime validators and double as documentation
-
-**Trade-offs**
-- Additional learning surface for developers who already know simpler validation libraries
-- Error messages are in English by default; i18n requires extra wiring
+| Layer | Technology |
+| --- | --- |
+| Backend | Go 1.26.2 · Gin 1.12.0 |
+| Database | MySQL 8.4 · raw `database/sql` (no ORM) |
+| Cache | Redis 7 · graceful noop fallback |
+| Message queue | RabbitMQ 3 · graceful noop fallback |
+| Auth | JWT HS256 · bcrypt |
+| Frontend | React 19 · Vite 8 · TanStack Query v5 · Zustand v5 · Tailwind v4 |
+| Observability | zerolog · Promtail · Loki · Grafana |
+| Testing | `go-sqlmock` (no live DB required) |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Go ≥ 1.21, Docker, Node.js ≥ 18
-
-### 1. Database
+**Full stack via Docker (recommended):**
 
 ```bash
-cd Backend
-docker-compose -f db.yaml up -d
+cp .env.example .env          # set JWT_SECRET at minimum
+docker compose up -d
+# API → :8080 · Grafana → :3000
 ```
 
-Apply the schema migrations manually:
+**Local development:**
 
 ```bash
-mysql -u user -p miniproject_database < migration_add_role.sql
-mysql -u user -p miniproject_database < migration_add_owner_to_teams.sql
-```
-
-### 2. Backend
-
-```bash
+# Backend
 cd Backend
-cp .env.example .env   # or create .env manually
+cp .env.example .env          # DB_HOST, JWT_SECRET required
 go mod tidy
-go run ./cmd
-# Listening on :8080
-```
+go run ./cmd                  # → :8080
 
-Required environment variables:
-
-```env
-DB_HOST=localhost
-DB_PORT=3311
-DB_USERNAME=user
-DB_PASSWORD=1234
-DB_NAME=miniproject_database
-JWT_SECRET=<any strong random string>   # required — server panics on startup if missing
-```
-
-### 3. Frontend
-
-```bash
+# Frontend
 cd Frontend/GoProject
 npm install
-npm run dev
-# Listening on :5173
+npm run dev                   # → :5173
 ```
 
-### Running Tests
+**Run tests (no live DB needed):**
 
 ```bash
-cd Backend
-go test ./...
+cd Backend && go test ./...
 ```
-
-Tests use `go-sqlmock` for repository-level mocking and cover service logic for all five service packages.
 
 ---
 
-## Known Limitations & Areas for Improvement
+## Known Limitations
 
-| Area | Current State | Suggested Improvement |
-|---|---|---|
-| Schema migrations | Manual `.sql` files | Adopt `golang-migrate` or Atlas for versioned, repeatable migrations |
-| Token revocation | In-memory JTI map; resets on restart | Move to Redis with TTL equal to token expiry |
-| Refresh tokens | Not implemented | Add short-lived access tokens (15 min) + long-lived refresh tokens |
-| Rate limiting | Single-process in-memory | Replace with Redis-based limiter (e.g. `go-redis/redis_rate`) for multi-instance support |
-| Import progress | HTTP polling every 2 s | Replace with Server-Sent Events or WebSocket for true push-based progress |
-| Folder share inheritance | Point-in-time snapshot | Notes added to a folder after sharing are not covered automatically |
-| Pagination | All list endpoints return full results | Add `limit` / `offset` or cursor-based pagination |
-| Structured logging | Mix of `fmt.Print` and `log.Printf` | Adopt `slog` (stdlib) or `zap` for JSON-structured, levelled logging |
-| API versioning | No versioning; all routes under `/api` | Prefix routes with `/api/v1` to allow non-breaking evolution |
-| Error messages | English only | Add i18n layer for client-facing error strings |
-| `revokedBy` audit field | Accepted but not persisted in `SharingService` | Store in a `permissions_audit` table for compliance |
-| Connection pool | Hardcoded (25 max open, 5 idle) | Make pool size configurable via env vars |
+| Area | Current State | Path Forward |
+| --- | --- | --- |
+| Token revocation | In-memory JTI map — resets on restart | Redis-backed blocklist with TTL |
+| Rate limiting | Single-process in-memory | Redis-based limiter for multi-instance |
+| Folder share inheritance | Point-in-time: notes added after sharing are not covered | Evaluate on-write vs. on-read resolution |
+| Import progress | HTTP polling every 2 s | Server-Sent Events for true push |
+| Pagination | All list endpoints return full result sets | `limit` / `offset` or cursor-based |
+| Schema migrations | Manual `.sql` files | `golang-migrate` or Atlas |

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"backend/internal/cache"
 	"backend/internal/model"
 	"backend/internal/repository"
 	"backend/package/dtorequest"
@@ -26,6 +27,7 @@ type TeamManagementService struct {
 	teamMembers *repository.TeamMemberRepository
 	users       *repository.UserRepository
 	publisher   event.Publisher
+	cache       *cache.TeamMembers
 }
 
 func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *repository.TeamMemberRepository, users *repository.UserRepository) *TeamManagementService {
@@ -34,6 +36,7 @@ func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *rep
 		teamMembers: teamMembers,
 		users:       users,
 		publisher:   event.NewNoopPublisher(),
+		cache:       cache.NewTeamMembers(cache.NewNoopCache()),
 	}
 }
 
@@ -42,6 +45,15 @@ func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *rep
 func (s *TeamManagementService) WithPublisher(p event.Publisher) *TeamManagementService {
 	if p != nil {
 		s.publisher = p
+	}
+	return s
+}
+
+// WithCache injects the team-members cache. Defaults to noop so unit tests and
+// cache-less deployments work unchanged.
+func (s *TeamManagementService) WithCache(c *cache.TeamMembers) *TeamManagementService {
+	if c != nil {
+		s.cache = c
 	}
 	return s
 }
@@ -73,6 +85,10 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 		}
 	}
 
+	// Brand-new team has no cached roster yet, but invalidate defensively in
+	// case a stale entry exists from a previous teamID reuse.
+	_ = s.cache.Invalidate(context.Background(), teamID)
+
 	s.publisher.PublishTeamEvent(context.Background(), event.TeamCreated, creatorUserID, map[string]any{
 		"team_id":   teamID,
 		"team_name": teamName,
@@ -80,6 +96,21 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 	})
 
 	return teamID, nil
+}
+
+// ListTeamMembers returns the roster for a team. Reads through the cache:
+// hit serves from Redis, miss falls back to the DB and refreshes the entry.
+func (s *TeamManagementService) ListTeamMembers(ctx context.Context, teamID int) ([]model.TeamMember, error) {
+	if members, ok := s.cache.Get(ctx, teamID); ok {
+		return members, nil
+	}
+
+	members, err := s.teamMembers.GetTeamMembers(teamID)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.cache.Set(ctx, teamID, members)
+	return members, nil
 }
 
 // AddMemberByName adds a user to a team; requires the actor to be OWNER or MANAGER, re-checked from DB to avoid stale JWT claims.
@@ -108,6 +139,8 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 	if err != nil {
 		return model.Team{}, fmt.Errorf("error failed to add member: %w", err)
 	}
+
+	_ = s.cache.Invalidate(context.Background(), team.TeamID)
 
 	// A manager invite is a privilege change; surface it as a separate event so
 	// notification consumers can give it special treatment.
@@ -169,6 +202,8 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 		return fmt.Errorf("error failed to remove member: %w", err)
 	}
 
+	_ = s.cache.Invalidate(context.Background(), team.TeamID)
+
 	eventType := event.MemberRemoved
 	if strings.EqualFold(memberRole, roleManager) {
 		eventType = event.ManagerRemoved
@@ -205,6 +240,8 @@ func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) 
 	if err != nil {
 		return fmt.Errorf("failed to delete team: %w", err)
 	}
+
+	_ = s.cache.Invalidate(context.Background(), team.TeamID)
 
 	s.publisher.PublishTeamEvent(context.Background(), event.TeamDeleted, actorUserID, map[string]any{
 		"team_id":   team.TeamID,

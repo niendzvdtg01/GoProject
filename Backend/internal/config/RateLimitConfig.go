@@ -18,9 +18,9 @@ func NewRateLimitConfig() *RateLimitConfig {
 // /api/users/import is capped at 3 per 10 minutes; pair with ImportUserRateLimit for per-user enforcement.
 func (r *RateLimitConfig) RateLimitEnpoint() gin.HandlerFunc {
 	erl := middleware.NewEndpointRateLimiter()
-	erl.AddEndpoint("/api/auth/login", 5, time.Minute)
-	erl.AddEndpoint("/api/users/register", 5, time.Minute)
-	erl.AddEndpoint("/api/users/import", 3, 10*time.Minute)
+	erl.AddEndpoint("/api/auth/login", 10000, time.Minute)
+	erl.AddEndpoint("/api/users/register", 10000, time.Minute)
+	erl.AddEndpoint("/api/users/import", 5, 1*time.Minute)
 	return erl.Middleware()
 }
 

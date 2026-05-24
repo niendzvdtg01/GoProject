@@ -1,0 +1,52 @@
+# Promtail tails every Docker container log on the host and ships parsed
+# entries to Loki. Container metadata (name, compose service, project) becomes
+# Loki labels so queries can filter by service in Grafana.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Expose compose metadata as labels for clean Grafana filtering.
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'project'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+    pipeline_stages:
+      # The Go backend logs JSON via zerolog; pull out the canonical fields so
+      # they're queryable as labels instead of buried in the log line.
+      - json:
+          expressions:
+            level: level
+            ts: time
+            message: message
+            request_id: request_id
+      - labels:
+          level:
+      - timestamp:
+          source: ts
+          format: RFC3339Nano
+          fallback_formats:
+            - RFC3339
+            - UnixMs
+      # Drop entries older than Loki's reject_old_samples_max_age (168h) so
+      # stale logs from stopped containers on the host never reach Loki.
+      - drop:
+          older_than: 168h
+          drop_counter_reason: entry_too_old

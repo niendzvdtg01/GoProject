@@ -1,0 +1,25 @@
+# Keep the build context small and free of host-only files.
+.git
+.gitignore
+.env
+.env.*
+*.md
+README.md
+CLAUDE.md
+
+# Build / test artefacts
+bin/
+dist/
+coverage.out
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Compose files don't belong inside the image
+*.yaml
+*.yml
+docker-compose*.yml
+Dockerfile
+.dockerignore

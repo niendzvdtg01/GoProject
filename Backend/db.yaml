@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mysql:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234 # Required: Root password
+      MYSQL_DATABASE: miniproject_database # Optional: Creates a database on startup
+      MYSQL_USER: user # Optional: Creates a non-root user
+      MYSQL_PASSWORD: 1234 # Optional: Password for the non-root user
+    ports:
+      - "3311:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:

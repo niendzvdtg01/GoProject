@@ -2,6 +2,7 @@ package main
 
 import (
 	routing "backend/api"
+	"backend/internal/cache"
 	"backend/internal/config"
 	"backend/internal/consumer"
 	"backend/internal/middleware"
@@ -14,17 +15,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		if err := godotenv.Load("Backend/.env"); err != nil {
-			panic("Error loading .env file")
-		}
-	}
+	// .env is a developer convenience; in container the env vars come from the
+	// orchestrator. Load best-effort and never panic on a missing file.
+	_ = godotenv.Load()
+	_ = godotenv.Load("Backend/.env")
 
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
@@ -48,6 +49,22 @@ func main() {
 	importTaskRepository := database.NewImportTaskRepository(database.DB)
 	auditLogRepository := database.NewAuditLogRepository(database.DB)
 
+	// Cache wiring. Redis outage degrades to the noop cache so reads fall
+	// straight through to the DB — never block startup on the cache.
+	cacheCfg := config.NewCacheConfig()
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	cacheStore, cacheErr := cache.NewRedisCache(pingCtx, cacheCfg.Addr)
+	pingCancel()
+	if cacheErr != nil {
+		logger.Warn().Err(cacheErr).Str("addr", cacheCfg.Addr).Msg("redis unavailable; cache disabled")
+		cacheStore = cache.NewNoopCache()
+	} else {
+		logger.Info().Str("addr", cacheCfg.Addr).Msg("redis cache connected")
+	}
+	teamMembersCache := cache.NewTeamMembers(cacheStore)
+	assetCache := cache.NewAssetMetadata(cacheStore)
+	aclCache := cache.NewACL(cacheStore)
+
 	// RabbitMQ wiring. Broker outage must not block API startup: degrade to the
 	// noop publisher so the rest of the app keeps working until the broker is back.
 	rmqCfg := config.NewRabbitMQConfig()
@@ -63,16 +80,24 @@ func main() {
 		} else {
 			publisher = p
 		}
-		startConsumers(broker, auditLogRepository, &logger)
+		startConsumers(broker, auditLogRepository, teamMembersCache, assetCache, aclCache, &logger)
 	}
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
 	authService := service.NewAuthService(userRepository, authMiddleware)
 	userService := service.NewUserService(userRepository, authMiddleware, importTaskRepository)
-	teamService := service.NewTeamManagementService(teamRepository, teamMemberRepository, userRepository).WithPublisher(publisher)
-	folderService := service.NewFolderService(folderRepository, userRepository, permissionRepository, teamMemberRepository).WithPublisher(publisher)
-	noteService := service.NewNoteService(noteRepository, folderRepository, userRepository, permissionRepository, teamMemberRepository).WithPublisher(publisher)
-	sharingService := service.NewSharing(noteRepository, folderRepository, userRepository, permissionRepository).WithPublisher(publisher)
+	teamService := service.NewTeamManagementService(teamRepository, teamMemberRepository, userRepository).
+		WithPublisher(publisher).
+		WithCache(teamMembersCache)
+	folderService := service.NewFolderService(folderRepository, userRepository, permissionRepository, teamMemberRepository).
+		WithPublisher(publisher).
+		WithCache(assetCache, aclCache)
+	noteService := service.NewNoteService(noteRepository, folderRepository, userRepository, permissionRepository, teamMemberRepository).
+		WithPublisher(publisher).
+		WithCache(assetCache, aclCache)
+	sharingService := service.NewSharing(noteRepository, folderRepository, userRepository, permissionRepository).
+		WithPublisher(publisher).
+		WithCache(aclCache)
 
 	if err := utils.RegisterValidators(); err != nil {
 		panic(err)
@@ -82,10 +107,11 @@ func main() {
 	server.Run(":8080")
 }
 
-// startConsumers boots the audit + notification consumers. Each consumer runs
-// in its own goroutine inside the broker; this function returns immediately.
-// On SIGINT/SIGTERM the shared ctx is canceled so all consumer loops exit.
-func startConsumers(broker rabbitmq.RabbitMQService, auditRepo *database.AuditLogRepository, logger *zerolog.Logger) {
+// startConsumers boots the audit, notification, and cache-invalidator
+// consumers. Each consumer runs in its own goroutine inside the broker; this
+// function returns immediately. On SIGINT/SIGTERM the shared ctx is canceled
+// so all consumer loops exit.
+func startConsumers(broker rabbitmq.RabbitMQService, auditRepo *database.AuditLogRepository, teamCache *cache.TeamMembers, assetCache *cache.AssetMetadata, aclCache *cache.ACL, logger *zerolog.Logger) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sigs := make(chan os.Signal, 1)
@@ -100,6 +126,7 @@ func startConsumers(broker rabbitmq.RabbitMQService, auditRepo *database.AuditLo
 		consumer.NewAuditConsumer(broker, auditRepo, logger),
 		consumer.NewNotificationConsumer(broker, logger)...,
 	)
+	consumers = append(consumers, consumer.NewCacheInvalidator(broker, teamCache, assetCache, aclCache, logger)...)
 	for _, c := range consumers {
 		if err := c.Start(ctx); err != nil {
 			logger.Error().Err(err).Str("consumer", c.Name).Msg("failed to start consumer")

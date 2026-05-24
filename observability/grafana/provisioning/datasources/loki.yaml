@@ -1,0 +1,13 @@
+# Auto-provisions Loki as the default Grafana datasource so opening Explore
+# lands on the right backend without manual setup.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: true
+    jsonData:
+      maxLines: 1000

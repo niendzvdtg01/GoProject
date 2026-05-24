@@ -1,6 +1,7 @@
 package service
 
 import (
+	"backend/internal/cache"
 	"backend/internal/repository"
 	"backend/package/dtorequest"
 	"backend/package/event"
@@ -15,6 +16,7 @@ type SharingService struct {
 	users      *repository.UserRepository
 	permission *repository.PermissionRepository
 	publisher  event.Publisher
+	aclCache   *cache.ACL
 }
 
 func NewSharing(notes *repository.NoteRepository, folder *repository.FolderRepository, users *repository.UserRepository, permission *repository.PermissionRepository) *SharingService {
@@ -24,12 +26,22 @@ func NewSharing(notes *repository.NoteRepository, folder *repository.FolderRepos
 		users:      users,
 		permission: permission,
 		publisher:  event.NewNoopPublisher(),
+		aclCache:   cache.NewACL(cache.NewNoopCache()),
 	}
 }
 
 func (s *SharingService) WithPublisher(p event.Publisher) *SharingService {
 	if p != nil {
 		s.publisher = p
+	}
+	return s
+}
+
+// WithCache injects the ACL cache so share/revoke can write-through. Defaults
+// to noop in tests.
+func (s *SharingService) WithCache(acl *cache.ACL) *SharingService {
+	if acl != nil {
+		s.aclCache = acl
 	}
 	return s
 }
@@ -69,6 +81,12 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 		return err
 	}
 
+	ctx := context.Background()
+	// Write-through: drop any cached "no permission" entry so the next ACL
+	// check sees the fresh grant. The ACL TTL alone would eventually expire
+	// the negative cache, but immediate invalidation keeps the share UX snappy.
+	_ = s.aclCache.InvalidateUser(ctx, assetType, assetID, user.UserID)
+
 	if assetType == repository.AssetTypeFolder { // propagate to contained notes
 		notes, err := s.notes.ListNotesByFolder(assetID)
 		if err != nil {
@@ -79,6 +97,7 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 			if err != nil && !errors.Is(err, repository.ErrPermissionAlreadyExists) {
 				return fmt.Errorf("share note %d: %w", note.ID, err)
 			}
+			_ = s.aclCache.InvalidateUser(ctx, repository.AssetTypeNote, note.ID, user.UserID)
 		}
 	}
 
@@ -86,7 +105,7 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 	if assetType == repository.AssetTypeFolder {
 		eventType = event.FolderShared
 	}
-	s.publisher.PublishAssetEvent(context.Background(), eventType, grantedBy, map[string]any{
+	s.publisher.PublishAssetEvent(ctx, eventType, grantedBy, map[string]any{
 		"asset_type":      assetType,
 		"asset_id":        assetID,
 		"granted_to":      user.UserID,
@@ -126,6 +145,9 @@ func (s *SharingService) RevokeAccess(req dtorequest.RevokeAccessRequest, revoke
 		return err
 	}
 
+	ctx := context.Background()
+	_ = s.aclCache.InvalidateUser(ctx, assetType, assetID, user.UserID)
+
 	if assetType == repository.AssetTypeFolder { // cascade: revoke inherited note permissions
 		notes, err := s.notes.ListNotesByFolder(assetID)
 		if err != nil {
@@ -136,6 +158,7 @@ func (s *SharingService) RevokeAccess(req dtorequest.RevokeAccessRequest, revoke
 			if err != nil && !errors.Is(err, repository.ErrPermissionNotFound) {
 				return fmt.Errorf("revoke note %d: %w", note.ID, err)
 			}
+			_ = s.aclCache.InvalidateUser(ctx, repository.AssetTypeNote, note.ID, user.UserID)
 		}
 	}
 

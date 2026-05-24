@@ -1,8 +1,5 @@
 .codex
 *.env
-*.yaml
-*.yml
-*.log
 *.db
 *.sql
 *.bak

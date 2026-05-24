@@ -17,6 +17,8 @@ func SetupRouter(auth *middleware.AuthMiddleware, authService *service.AuthServi
 	server.Use(config.NewCorsConfig().CustomCORS())
 	server.Use(rateLimitCfg.RateLimitEnpoint())
 
+	server.GET("/health", func(c *gin.Context) { c.Status(200) })
+
 	serverRouting := server.Group("/api")
 	{
 		userhandler := user.NewUserHandler(userService)
