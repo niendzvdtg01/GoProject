@@ -3,6 +3,7 @@ package service
 import (
 	"backend/internal/model"
 	"backend/internal/repository"
+	"backend/package/event"
 	"context"
 	"database/sql"
 	"errors"
@@ -15,6 +16,7 @@ type NoteService struct {
 	users       *repository.UserRepository
 	permission  *repository.PermissionRepository
 	teamMembers *repository.TeamMemberRepository
+	publisher   event.Publisher
 }
 
 func NewNoteService(notes *repository.NoteRepository, folder *repository.FolderRepository, users *repository.UserRepository, permission *repository.PermissionRepository, teamMembers *repository.TeamMemberRepository) *NoteService {
@@ -24,7 +26,15 @@ func NewNoteService(notes *repository.NoteRepository, folder *repository.FolderR
 		users:       users,
 		permission:  permission,
 		teamMembers: teamMembers,
+		publisher:   event.NewNoopPublisher(),
 	}
+}
+
+func (s *NoteService) WithPublisher(p event.Publisher) *NoteService {
+	if p != nil {
+		s.publisher = p
+	}
+	return s
 }
 
 // canRead checks: owner → note permission → folder permission (inherited) → team manager.
@@ -105,7 +115,17 @@ func (s *NoteService) CreateNote(ctx context.Context, folderID int, ownerID, tit
 		return model.Note{}, fmt.Errorf("create note: %w", err)
 	}
 
-	return s.notes.GetNoteByID(id)
+	note, err := s.notes.GetNoteByID(id)
+	if err != nil {
+		return model.Note{}, err
+	}
+
+	s.publisher.PublishAssetEvent(ctx, event.NoteCreated, ownerID, map[string]any{
+		"note_id":   note.ID,
+		"folder_id": note.FolderID,
+		"title":     note.Title,
+	})
+	return note, nil
 }
 
 func (s *NoteService) GetNote(ctx context.Context, noteID int, requesterID string) (model.Note, error) {
@@ -170,7 +190,18 @@ func (s *NoteService) UpdateNote(ctx context.Context, noteID int, requesterID, t
 		return model.Note{}, ErrForbidden
 	}
 
-	return s.notes.UpdateNote(noteID, title, content)
+	updated, err := s.notes.UpdateNote(noteID, title, content)
+	if err != nil {
+		return model.Note{}, err
+	}
+
+	s.publisher.PublishAssetEvent(ctx, event.NoteUpdated, requesterID, map[string]any{
+		"note_id":   updated.ID,
+		"folder_id": updated.FolderID,
+		"title":     updated.Title,
+		"owner_id":  updated.OwnerID,
+	})
+	return updated, nil
 }
 
 func (s *NoteService) DeleteNote(ctx context.Context, noteID int, requesterID string) error {
@@ -187,5 +218,15 @@ func (s *NoteService) DeleteNote(ctx context.Context, noteID int, requesterID st
 		return ErrForbidden
 	}
 
-	return s.notes.DeleteNote(noteID)
+	if err := s.notes.DeleteNote(noteID); err != nil {
+		return err
+	}
+
+	s.publisher.PublishAssetEvent(ctx, event.NoteDeleted, requesterID, map[string]any{
+		"note_id":   note.ID,
+		"folder_id": note.FolderID,
+		"title":     note.Title,
+		"owner_id":  note.OwnerID,
+	})
+	return nil
 }

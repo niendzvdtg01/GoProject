@@ -4,6 +4,8 @@ import (
 	"backend/internal/model"
 	"backend/internal/repository"
 	"backend/package/dtorequest"
+	"backend/package/event"
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ type TeamManagementService struct {
 	teams       *repository.TeamRepository
 	teamMembers *repository.TeamMemberRepository
 	users       *repository.UserRepository
+	publisher   event.Publisher
 }
 
 func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *repository.TeamMemberRepository, users *repository.UserRepository) *TeamManagementService {
@@ -30,7 +33,17 @@ func NewTeamManagementService(teams *repository.TeamRepository, teamMembers *rep
 		teams:       teams,
 		teamMembers: teamMembers,
 		users:       users,
+		publisher:   event.NewNoopPublisher(),
 	}
+}
+
+// WithPublisher injects an event publisher. Defaults to noop so unit tests can
+// construct the service without touching the broker.
+func (s *TeamManagementService) WithPublisher(p event.Publisher) *TeamManagementService {
+	if p != nil {
+		s.publisher = p
+	}
+	return s
 }
 
 // CreateTeam creates a team, assigns the caller as OWNER, and optionally adds initial members resolved by username.
@@ -59,6 +72,12 @@ func (s *TeamManagementService) CreateTeam(teamName, creatorUserID string, membe
 			return 0, fmt.Errorf("error adding team member %s: %w", m.MemberName, err)
 		}
 	}
+
+	s.publisher.PublishTeamEvent(context.Background(), event.TeamCreated, creatorUserID, map[string]any{
+		"team_id":   teamID,
+		"team_name": teamName,
+		"members":   members,
+	})
 
 	return teamID, nil
 }
@@ -89,6 +108,20 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 	if err != nil {
 		return model.Team{}, fmt.Errorf("error failed to add member: %w", err)
 	}
+
+	// A manager invite is a privilege change; surface it as a separate event so
+	// notification consumers can give it special treatment.
+	eventType := event.MemberAdded
+	if strings.EqualFold(role, roleManager) {
+		eventType = event.ManagerAdded
+	}
+	s.publisher.PublishTeamEvent(context.Background(), eventType, actorUserID, map[string]any{
+		"team_id":   team.TeamID,
+		"team_name": team.TeamName,
+		"member_id": user.UserID,
+		"username":  memberName,
+		"role":      role,
+	})
 
 	return team, nil
 }
@@ -136,6 +169,18 @@ func (s *TeamManagementService) RemoveMemberByName(teamName string, actorUserID 
 		return fmt.Errorf("error failed to remove member: %w", err)
 	}
 
+	eventType := event.MemberRemoved
+	if strings.EqualFold(memberRole, roleManager) {
+		eventType = event.ManagerRemoved
+	}
+	s.publisher.PublishTeamEvent(context.Background(), eventType, actorUserID, map[string]any{
+		"team_id":   team.TeamID,
+		"team_name": team.TeamName,
+		"member_id": user.UserID,
+		"username":  memberName,
+		"role":      memberRole,
+	})
+
 	return nil
 }
 
@@ -160,6 +205,11 @@ func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) 
 	if err != nil {
 		return fmt.Errorf("failed to delete team: %w", err)
 	}
+
+	s.publisher.PublishTeamEvent(context.Background(), event.TeamDeleted, actorUserID, map[string]any{
+		"team_id":   team.TeamID,
+		"team_name": teamName,
+	})
 
 	return nil
 }

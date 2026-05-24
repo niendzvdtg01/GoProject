@@ -94,7 +94,13 @@ func (s *UserService) ListUsers(ctx context.Context) ([]model.PublicUser, error)
 	return s.users.ListUsers(ctx)
 }
 
+/**
+*__________TASK IMPORT BULK CSV___________
+*=))
+**/
+
 // ImportUser runs a CSV import synchronously; use CreateImportTask + ProcessImportAsync from HTTP handlers to avoid blocking.
+// Btw this function only use for testing purpose, it doesn't affect any fields of project logic(may be)
 func (u *UserService) ImportUser(file io.Reader, fileName, userID string, ctx context.Context) ImportSummary {
 	taskID, err := u.importTasks.CreateTask(ctx, userID, fileName)
 	if err != nil {

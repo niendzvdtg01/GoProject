@@ -3,6 +3,8 @@ package service
 import (
 	"backend/internal/repository"
 	"backend/package/dtorequest"
+	"backend/package/event"
+	"context"
 	"errors"
 	"fmt"
 )
@@ -12,6 +14,7 @@ type SharingService struct {
 	folder     *repository.FolderRepository
 	users      *repository.UserRepository
 	permission *repository.PermissionRepository
+	publisher  event.Publisher
 }
 
 func NewSharing(notes *repository.NoteRepository, folder *repository.FolderRepository, users *repository.UserRepository, permission *repository.PermissionRepository) *SharingService {
@@ -20,7 +23,15 @@ func NewSharing(notes *repository.NoteRepository, folder *repository.FolderRepos
 		folder:     folder,
 		users:      users,
 		permission: permission,
+		publisher:  event.NewNoopPublisher(),
 	}
+}
+
+func (s *SharingService) WithPublisher(p event.Publisher) *SharingService {
+	if p != nil {
+		s.publisher = p
+	}
+	return s
 }
 
 // ShareAsset grants a permission to a user (by email) on a note or folder; sharing a folder propagates the permission to its current notes.
@@ -70,6 +81,18 @@ func (s *SharingService) ShareAsset(req dtorequest.ShareAssetRequest, grantedBy 
 			}
 		}
 	}
+
+	eventType := event.NoteShared
+	if assetType == repository.AssetTypeFolder {
+		eventType = event.FolderShared
+	}
+	s.publisher.PublishAssetEvent(context.Background(), eventType, grantedBy, map[string]any{
+		"asset_type":      assetType,
+		"asset_id":        assetID,
+		"granted_to":      user.UserID,
+		"granted_email":   req.Email,
+		"permission_type": req.PermissionType,
+	})
 
 	return nil
 }
