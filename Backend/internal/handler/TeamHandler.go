@@ -3,7 +3,6 @@ package handler
 import (
 	"backend/internal/service"
 	"backend/package/dtorequest"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -61,7 +60,6 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 
 	team, err := h.teamService.AddMemberByName(teamName, userID.(string), req.MemberName, req.Role)
 	if err != nil {
-		fmt.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

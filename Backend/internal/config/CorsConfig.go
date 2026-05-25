@@ -19,6 +19,7 @@ func NewCorsConfig() *CorsConfig {
 func (c *CorsConfig) CustomCORS() gin.HandlerFunc {
 	corsMiddleware := c.corsMiddleware.
 		SetAllowedOrigins([]string{
+			"http://localhost:3001",
 			"http://localhost:5173",
 			"https://example.com",
 		}).

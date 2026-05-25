@@ -92,6 +92,19 @@ services:
       - 8.8.4.4
     networks: [appnet]
 
+  frontend:
+    build:
+      context: ./Frontend/GoProject
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    labels:
+      app: frontend
+    networks: [appnet]
+
   # ── Observability ────────────────────────────────────────────────────────
   loki:
     image: grafana/loki:3.5.6

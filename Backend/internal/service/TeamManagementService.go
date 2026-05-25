@@ -131,7 +131,6 @@ func (s *TeamManagementService) AddMemberByName(teamName string, actorUserID str
 
 	user, err := s.users.GetUserByUsername(memberName)
 	if err != nil {
-		fmt.Print(err)
 		return model.Team{}, err
 	}
 
@@ -232,7 +231,6 @@ func (s *TeamManagementService) DeleteTeam(teamName string, actorUserID string) 
 	}
 
 	if teamMember != roleOwner {
-		fmt.Println(teamMember)
 		return errors.New("error: only the team owner can delete the team")
 	}
 

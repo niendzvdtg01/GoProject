@@ -1,0 +1,1337 @@
+openapi: 3.0.3
+
+info:
+  title: GoProject — Collaborative Note & Team Management API
+  description: |
+    Full REST API for managing users, teams, folders, notes, and asset sharing.
+
+    ## Authentication
+    All protected endpoints require a **Bearer JWT token** in the `Authorization` header.
+    Obtain a token via `POST /api/auth/login`. Tokens expire after **24 hours**.
+
+    ## Access Control
+    Resources follow a 4-stage check:
+    1. **Owner** → full access
+    2. **Explicit ACL** (Redis-cached, 30 min TTL)
+    3. **Team Manager** of the owner → read-only
+    4. **Deny** → HTTP 403
+
+    ## Rate Limits
+    | Endpoint | Limit |
+    |---|---|
+    | `POST /auth/login` | 10,000 req / min / IP |
+    | `POST /users/register` | 10,000 req / min / IP |
+    | `POST /users/import` | 5 req / min / IP · 3 req / 10 min per user |
+  version: 1.0.0
+  contact:
+    email: duynien34@gmail.com
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development
+  - url: http://localhost:8080/api
+    description: Docker Compose stack
+
+tags:
+  - name: Auth
+    description: Login and logout
+  - name: Users
+    description: User registration and listing
+  - name: Import
+    description: Async bulk user import via CSV
+  - name: Teams
+    description: Team creation and membership management
+  - name: Folders
+    description: Folder CRUD
+  - name: Notes
+    description: Note CRUD within folders
+  - name: Sharing
+    description: Share and revoke asset access by email
+  - name: Health
+    description: Service health
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from POST /auth/login
+
+  schemas:
+    # ─── Requests ────────────────────────────────────────────────────────────
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: alice@example.com
+        password:
+          type: string
+          example: "secretpassword"
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password, role]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: alice
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: alice@example.com
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          example: "secretpassword"
+        role:
+          type: string
+          enum: [manager, member]
+          example: manager
+
+    CreateTeamRequest:
+      type: object
+      required: [teamName]
+      properties:
+        teamName:
+          type: string
+          example: engineering
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberInput"
+
+    MemberInput:
+      type: object
+      required: [username, role]
+      properties:
+        username:
+          type: string
+          example: bob
+        role:
+          type: string
+          enum: [manager, member]
+          example: member
+
+    AddMemberRequest:
+      type: object
+      required: [username, role]
+      properties:
+        username:
+          type: string
+          example: bob
+        role:
+          type: string
+          enum: [manager, member]
+          example: member
+
+    CreateFolderRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: My Project Notes
+
+    UpdateFolderRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Renamed Folder
+
+    CreateNoteRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Meeting Notes
+        content:
+          type: string
+          example: "Discussed roadmap for Q3..."
+
+    UpdateNoteRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Updated Meeting Notes
+        content:
+          type: string
+          example: "Updated content after review..."
+
+    ShareAssetRequest:
+      type: object
+      required: [email, permissionType]
+      properties:
+        email:
+          type: string
+          format: email
+          example: bob@example.com
+        noteId:
+          type: integer
+          description: Required if folderId is not provided
+          example: 42
+        folderId:
+          type: integer
+          description: Required if noteId is not provided
+          example: 7
+        permissionType:
+          type: string
+          enum: [read, write]
+          example: read
+
+    RevokeAccessRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: bob@example.com
+        noteId:
+          type: integer
+          description: Required if folderId is not provided
+          example: 42
+        folderId:
+          type: integer
+          description: Required if noteId is not provided
+          example: 7
+
+    # ─── Domain Models ───────────────────────────────────────────────────────
+
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          example: alice
+        email:
+          type: string
+          format: email
+          example: alice@example.com
+        role:
+          type: string
+          enum: [manager, member]
+          example: manager
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token (HS256, 24h expiry)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: "#/components/schemas/User"
+
+    Team:
+      type: object
+      properties:
+        team_id:
+          type: integer
+          example: 1
+        team_name:
+          type: string
+          example: engineering
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+
+    TeamMember:
+      type: object
+      properties:
+        team_id:
+          type: integer
+          example: 1
+        user_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        role:
+          type: string
+          enum: [owner, manager, member]
+          example: member
+        joined_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+
+    Folder:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 7
+        owner_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          example: My Project Notes
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+
+    Note:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 42
+        folder_id:
+          type: integer
+          example: 7
+        owner_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        title:
+          type: string
+          example: Meeting Notes
+        content:
+          type: string
+          example: "Discussed roadmap for Q3..."
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+
+    ImportTask:
+      type: object
+      properties:
+        task_id:
+          type: integer
+          format: int64
+          example: 123
+        created_by:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        file_name:
+          type: string
+          example: users.csv
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          example: processing
+        total_rows:
+          type: integer
+          example: 500
+        processed_rows:
+          type: integer
+          example: 250
+        succeeded:
+          type: integer
+          example: 248
+        failed:
+          type: integer
+          example: 2
+        error_log:
+          type: string
+          nullable: true
+          example: "Row 14: email already exists"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00Z"
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-15T09:00:01Z"
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    # ─── Common Responses ─────────────────────────────────────────────────────
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: operation successful
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: invalid request body
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: unauthorized
+
+    Forbidden:
+      description: Authenticated but lacks permission on this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: forbidden
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: not found
+
+    BadRequest:
+      description: Validation error or malformed request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: invalid request body
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: internal server error
+
+# =============================================================================
+# PATHS
+# =============================================================================
+
+paths:
+
+  # ─── Health ─────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns 200 if the API server is running.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ─── Auth ────────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticates a user and returns a JWT token valid for 24 hours.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid credentials
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: |
+        Revokes the current token by adding its JTI to an in-memory blocklist.
+        The token is unusable immediately but the blocklist resets on server restart.
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: logout successful
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ─── Users ───────────────────────────────────────────────────────────────────
+
+  /users/register:
+    post:
+      tags: [Users]
+      summary: Register a new user
+      description: Creates a new user account. Role must be `manager` or `member`.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: email already exists
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users
+      description: Returns all registered users. Requires authentication.
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Users retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Import ──────────────────────────────────────────────────────────────────
+
+  /users/import:
+    post:
+      tags: [Import]
+      summary: Bulk import users from CSV
+      description: |
+        Accepts a CSV file and starts an async import job. Returns HTTP **202** with a
+        `task_id` in under 5 ms regardless of file size.
+
+        A **5-worker goroutine pool** processes rows concurrently and flushes progress
+        every 500 rows or 2 seconds. Poll `GET /import-tasks/{id}` to track progress.
+
+        **CSV format:** `username,email,password,role`
+
+        **Rate limit:** 5 req/min/IP · 3 req/10 min per user
+      operationId: importUsers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file (max 10 MB)
+      responses:
+        "202":
+          description: Import task accepted and processing started
+          headers:
+            Location:
+              description: URL to poll for task progress
+              schema:
+                type: string
+                example: /api/import-tasks/123
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: integer
+                    format: int64
+                    example: 123
+                  status_url:
+                    type: string
+                    example: /api/import-tasks/123
+                  message:
+                    type: string
+                    example: Import is being processed
+        "400":
+          description: Missing or invalid file
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Too many active import tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: too many active imports
+        "413":
+          description: File exceeds 10 MB limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: file too large
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /import-tasks/{id}:
+    get:
+      tags: [Import]
+      summary: Get import task status
+      description: |
+        Returns the current state of a bulk import task. Poll this endpoint every
+        2 seconds until `status` is `completed` or `failed`.
+      operationId: getImportTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Import task ID returned by POST /users/import
+          example: 123
+      responses:
+        "200":
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportTask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Teams ───────────────────────────────────────────────────────────────────
+
+  /teams:
+    get:
+      tags: [Teams]
+      summary: List all teams
+      description: Returns all teams visible to the authenticated user.
+      operationId: listTeams
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Teams retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teams:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Team"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      tags: [Teams]
+      summary: Create a team
+      description: |
+        Creates a new team. The authenticated user becomes the `OWNER` automatically.
+        Requires `manager` role.
+      operationId: createTeam
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamRequest"
+            example:
+              teamName: engineering
+              members:
+                - username: bob
+                  role: member
+      responses:
+        "201":
+          description: Team created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teamID:
+                    type: integer
+                    example: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /teams/{teamName}/members:
+    post:
+      tags: [Teams]
+      summary: Add a member to a team
+      description: |
+        Adds a user to a team by username. Requires `manager` role and team ownership.
+      operationId: addTeamMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: teamName
+          in: path
+          required: true
+          schema:
+            type: string
+          example: engineering
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberRequest"
+      responses:
+        "200":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /teams/{teamName}/members/{memberName}:
+    delete:
+      tags: [Teams]
+      summary: Remove a member from a team
+      description: |
+        Removes a member from a team. Requires `manager` role.
+        Only an `OWNER` can remove a `MANAGER`.
+      operationId: removeTeamMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: teamName
+          in: path
+          required: true
+          schema:
+            type: string
+          example: engineering
+        - name: memberName
+          in: path
+          required: true
+          schema:
+            type: string
+          example: bob
+      responses:
+        "200":
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Member removed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /teams/{teamName}:
+    delete:
+      tags: [Teams]
+      summary: Delete a team
+      description: |
+        Permanently deletes a team and all its memberships.
+        Only the team `OWNER` can perform this action.
+      operationId: deleteTeam
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: teamName
+          in: path
+          required: true
+          schema:
+            type: string
+          example: engineering
+      responses:
+        "200":
+          description: Team deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Team deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Folders ─────────────────────────────────────────────────────────────────
+
+  /folders:
+    post:
+      tags: [Folders]
+      summary: Create a folder
+      description: Creates a new folder owned by the authenticated user.
+      operationId: createFolder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderRequest"
+      responses:
+        "201":
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Folders]
+      summary: List folders
+      description: Returns all folders accessible to the authenticated user (owned + shared).
+      operationId: listFolders
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Folders retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  folders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /folders/{id}:
+    get:
+      tags: [Folders]
+      summary: Get a folder
+      description: |
+        Returns a single folder by ID. Access is checked via the 4-stage ACL.
+      operationId: getFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 7
+      responses:
+        "200":
+          description: Folder found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      tags: [Folders]
+      summary: Update a folder
+      description: Renames a folder. Only the owner or a user with `write` permission can update.
+      operationId: updateFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFolderRequest"
+      responses:
+        "200":
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [Folders]
+      summary: Delete a folder
+      description: |
+        Deletes a folder and all its notes. Only the owner can delete.
+        Triggers RabbitMQ cache invalidation events for all affected ACL entries.
+      operationId: deleteFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 7
+      responses:
+        "200":
+          description: Folder deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: folder deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Notes (under folder) ─────────────────────────────────────────────────────
+
+  /folders/{id}/notes:
+    post:
+      tags: [Notes]
+      summary: Create a note in a folder
+      description: |
+        Creates a new note inside a folder. The authenticated user must have `write`
+        access to the folder (owner or explicit ACL).
+      operationId: createNote
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Parent folder ID
+          schema:
+            type: integer
+          example: 7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNoteRequest"
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Folder not found
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Notes]
+      summary: List notes in a folder
+      description: Returns all notes inside a folder accessible to the authenticated user.
+      operationId: listNotes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Parent folder ID
+          schema:
+            type: integer
+          example: 7
+      responses:
+        "200":
+          description: Notes retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Note"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Notes (standalone) ──────────────────────────────────────────────────────
+
+  /notes/{id}:
+    get:
+      tags: [Notes]
+      summary: Get a note
+      description: Returns a single note by ID. Access is checked via the 4-stage ACL.
+      operationId: getNote
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 42
+      responses:
+        "200":
+          description: Note found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      tags: [Notes]
+      summary: Update a note
+      description: Updates a note's title and content. Requires `write` permission or ownership.
+      operationId: updateNote
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 42
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNoteRequest"
+      responses:
+        "200":
+          description: Note updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [Notes]
+      summary: Delete a note
+      description: Permanently deletes a note. Only the owner can delete.
+      operationId: deleteNote
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 42
+      responses:
+        "200":
+          description: Note deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: note deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Sharing ──────────────────────────────────────────────────────────────────
+
+  /share:
+    post:
+      tags: [Sharing]
+      summary: Share an asset
+      description: |
+        Grants a user access to a folder or note by email.
+
+        - Sharing a **folder** automatically propagates `read`/`write` to all existing
+          notes inside it.
+        - Publishes a cache invalidation event to RabbitMQ so Redis ACL entries are
+          cleared across all instances immediately.
+      operationId: shareAsset
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareAssetRequest"
+            examples:
+              shareFolder:
+                summary: Share a folder
+                value:
+                  email: bob@example.com
+                  folderId: 7
+                  permissionType: read
+              shareNote:
+                summary: Share a note
+                value:
+                  email: bob@example.com
+                  noteId: 42
+                  permissionType: write
+      responses:
+        "200":
+          description: Access granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: access granted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [Sharing]
+      summary: Revoke asset access
+      description: |
+        Revokes a user's access to a folder or note by email.
+
+        - Revoking a **folder** cascades to all notes inside it.
+        - Publishes a cache invalidation event to RabbitMQ.
+      operationId: revokeAccess
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeAccessRequest"
+            examples:
+              revokeFolder:
+                summary: Revoke folder access
+                value:
+                  email: bob@example.com
+                  folderId: 7
+              revokeNote:
+                summary: Revoke note access
+                value:
+                  email: bob@example.com
+                  noteId: 42
+      responses:
+        "200":
+          description: Access revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: access revoked
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"

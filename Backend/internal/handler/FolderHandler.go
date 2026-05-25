@@ -5,7 +5,6 @@ import (
 	"backend/internal/service"
 	"backend/package/dtorequest"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -31,7 +30,6 @@ func (h *FolderHandler) CreateFolder(c *gin.Context) {
 
 	folder, err := h.folderService.CreateFolder(c.Request.Context(), ownerID.(string), req.Name)
 	if err != nil {
-		fmt.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create folder"})
 		return
 	}
