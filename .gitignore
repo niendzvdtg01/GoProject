@@ -1,7 +1,6 @@
 .codex
 *.env
 *.db
-*.sql
 *.bak
 *.tmp
 *.swp
